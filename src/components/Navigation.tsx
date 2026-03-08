@@ -10,7 +10,7 @@ const navItems: { view: AppView; emoji: string; label: string }[] = [
   { view: 'pet', emoji: '🐾', label: 'Pet' },
   { view: 'chat', emoji: '💬', label: 'Chat' },
   { view: 'battle', emoji: '⚔️', label: 'Battle' },
-  { view: 'arena', emoji: '🏟️', label: 'Arena' },
+  { view: 'social', emoji: '👥', label: 'Social' },
   { view: 'wallet', emoji: '💰', label: 'Wallet' },
 ];
 

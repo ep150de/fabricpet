@@ -15,6 +15,7 @@ import { WalletView } from './components/WalletView';
 import { HomeView } from './components/HomeView';
 import { ChatView } from './components/ChatView';
 import { ArenaView } from './components/ArenaView';
+import { SocialView } from './components/SocialView';
 import { SetupScreen } from './components/SetupScreen';
 import { Notification } from './components/Notification';
 
@@ -158,6 +159,7 @@ export default function App() {
         {currentView === 'chat' && <ChatView />}
         {currentView === 'battle' && <BattleScreen />}
         {currentView === 'arena' && <ArenaView height="calc(100vh - 8rem)" />}
+        {currentView === 'social' && <SocialView />}
         {currentView === 'wallet' && <WalletView />}
       </main>
 
