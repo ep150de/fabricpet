@@ -1,0 +1,43 @@
+{
+  "arena": {
+    "defaultRadius": 15,
+    "maxRadius": 50,
+    "minRadius": 8,
+    "materializationDurationMs": 3000,
+    "collapseDurationMs": 2000,
+    "gridCellSize": 1.0,
+    "wallHeight": 10,
+    "barrierOpacity": 0.3,
+    "maxSpectators": 100,
+    "battleTimeout": 300000,
+    "turnTimeLimit": 30000
+  },
+  "holoball": {
+    "throwSpeed": 20,
+    "throwArc": 0.6,
+    "openingDurationMs": 1500,
+    "beamHeight": 8,
+    "beamDurationMs": 2000,
+    "idleRotationSpeed": 0.5,
+    "idleHoverAmplitude": 0.1,
+    "idleHoverFrequency": 1.5,
+    "recallDurationMs": 1000
+  },
+  "battle": {
+    "cameraOrbitSpeed": 0.3,
+    "cameraDistance": 12,
+    "cameraHeight": 6,
+    "moveAnimationDurationMs": 1200,
+    "statusEffectDurationMs": 800,
+    "hitFlashDurationMs": 200,
+    "victoryAnimationDurationMs": 3000,
+    "xpAnimationDurationMs": 1500
+  },
+  "audio": {
+    "masterVolume": 0.8,
+    "sfxVolume": 1.0,
+    "ambientVolume": 0.4,
+    "spatialRolloff": 1.0,
+    "maxAudioDistance": 50
+  }
+}

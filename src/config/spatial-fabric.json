@@ -1,0 +1,89 @@
+{
+  "rp1": {
+    "spatialFabric": {
+      "serviceId": "holoball-arena",
+      "serviceName": "HoloBall Battle Arena",
+      "serviceVersion": "0.1.0",
+      "serviceType": "interactive-experience",
+      "description": "Holodeck-style AI digital pet battle arena powered by FabricPet",
+      "spatialRegistration": {
+        "enabled": true,
+        "discoverable": true,
+        "category": "gaming",
+        "tags": ["battle", "pets", "arena", "holodeck", "ai"],
+        "maxConcurrentArenas": 50,
+        "arenaFootprintRadius": 15
+      },
+      "mvmf": {
+        "protocolVersion": "1.0",
+        "models": [
+          {
+            "name": "ArenaState",
+            "type": "realtime",
+            "description": "Real-time arena state including battle progress and pet positions"
+          },
+          {
+            "name": "HoloBallState",
+            "type": "realtime",
+            "description": "HoloBall deployment state and animation phase"
+          },
+          {
+            "name": "SpectatorState",
+            "type": "realtime",
+            "description": "Spectator positions and camera states"
+          },
+          {
+            "name": "MatchmakingQueue",
+            "type": "stateless",
+            "description": "Matchmaking requests and responses"
+          }
+        ],
+        "endpoints": {
+          "arena": "/nso/arena",
+          "matchmaking": "/nso/matchmaking",
+          "spectator": "/nso/spectator",
+          "tournament": "/nso/tournament"
+        }
+      },
+      "statabase": {
+        "enabled": true,
+        "collections": [
+          "active_arenas",
+          "battle_states",
+          "spectator_sessions",
+          "matchmaking_queue"
+        ]
+      },
+      "spatialAudio": {
+        "enabled": true,
+        "zones": [
+          {
+            "name": "arena_interior",
+            "type": "enclosed",
+            "reverb": 0.4,
+            "rolloff": 1.5
+          },
+          {
+            "name": "arena_exterior",
+            "type": "open",
+            "reverb": 0.1,
+            "rolloff": 1.0
+          }
+        ]
+      }
+    },
+    "nostr": {
+      "relays": [
+        "wss://relay.damus.io",
+        "wss://nos.lol",
+        "wss://relay.nostr.band"
+      ],
+      "eventKinds": {
+        "arenaChallenge": 30078,
+        "battleResult": 30079,
+        "tournamentBracket": 30080,
+        "leaderboard": 30081
+      }
+    }
+  }
+}

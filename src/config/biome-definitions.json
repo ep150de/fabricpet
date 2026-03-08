@@ -1,0 +1,172 @@
+{
+  "biomes": [
+    {
+      "id": "cyber_grid",
+      "name": "Cyber Grid",
+      "description": "A Tron-like digital arena with neon grid lines and data streams",
+      "elementAffinity": "electric",
+      "colors": {
+        "primary": "#00ffff",
+        "secondary": "#ff00ff",
+        "grid": "#00ffff",
+        "ambient": "#0a0a2e",
+        "sky": "#000022"
+      },
+      "effects": {
+        "gridPulse": true,
+        "dataStreams": true,
+        "neonGlow": true,
+        "particleDensity": 0.6
+      },
+      "statModifiers": {
+        "electric": 1.2,
+        "water": 0.8
+      },
+      "ambientSound": "cyber_hum"
+    },
+    {
+      "id": "volcanic_forge",
+      "name": "Volcanic Forge",
+      "description": "A molten arena with lava flows and obsidian pillars",
+      "elementAffinity": "fire",
+      "colors": {
+        "primary": "#ff4400",
+        "secondary": "#ffaa00",
+        "grid": "#ff2200",
+        "ambient": "#1a0500",
+        "sky": "#2a0800"
+      },
+      "effects": {
+        "lavaFlow": true,
+        "emberParticles": true,
+        "heatDistortion": true,
+        "particleDensity": 0.8
+      },
+      "statModifiers": {
+        "fire": 1.2,
+        "grass": 0.8
+      },
+      "ambientSound": "lava_rumble"
+    },
+    {
+      "id": "deep_ocean",
+      "name": "Deep Ocean",
+      "description": "An underwater arena with bioluminescent coral and currents",
+      "elementAffinity": "water",
+      "colors": {
+        "primary": "#0066ff",
+        "secondary": "#00ffaa",
+        "grid": "#0044aa",
+        "ambient": "#000a1a",
+        "sky": "#001133"
+      },
+      "effects": {
+        "waterCaustics": true,
+        "bubbleParticles": true,
+        "currentWaves": true,
+        "particleDensity": 0.5
+      },
+      "statModifiers": {
+        "water": 1.2,
+        "fire": 0.8
+      },
+      "ambientSound": "ocean_deep"
+    },
+    {
+      "id": "crystal_cavern",
+      "name": "Crystal Cavern",
+      "description": "A sparkling underground arena with prismatic crystal formations",
+      "elementAffinity": "earth",
+      "colors": {
+        "primary": "#aa44ff",
+        "secondary": "#ff44aa",
+        "grid": "#8833cc",
+        "ambient": "#0a0015",
+        "sky": "#150025"
+      },
+      "effects": {
+        "crystalRefraction": true,
+        "prismLight": true,
+        "gemSparkle": true,
+        "particleDensity": 0.4
+      },
+      "statModifiers": {
+        "earth": 1.2,
+        "electric": 0.8
+      },
+      "ambientSound": "crystal_chime"
+    },
+    {
+      "id": "void_nexus",
+      "name": "Void Nexus",
+      "description": "A dark matter arena floating in the cosmic void with star fields",
+      "elementAffinity": "dark",
+      "colors": {
+        "primary": "#8800ff",
+        "secondary": "#ff0088",
+        "grid": "#440088",
+        "ambient": "#020008",
+        "sky": "#000000"
+      },
+      "effects": {
+        "starField": true,
+        "darkMatterWisps": true,
+        "gravityDistortion": true,
+        "particleDensity": 0.3
+      },
+      "statModifiers": {
+        "dark": 1.2,
+        "light": 0.8
+      },
+      "ambientSound": "void_whisper"
+    },
+    {
+      "id": "sky_temple",
+      "name": "Sky Temple",
+      "description": "A floating arena among the clouds with golden light beams",
+      "elementAffinity": "light",
+      "colors": {
+        "primary": "#ffdd00",
+        "secondary": "#ffffff",
+        "grid": "#ffcc00",
+        "ambient": "#1a1500",
+        "sky": "#4488ff"
+      },
+      "effects": {
+        "cloudDrift": true,
+        "lightBeams": true,
+        "goldenParticles": true,
+        "particleDensity": 0.5
+      },
+      "statModifiers": {
+        "light": 1.2,
+        "dark": 0.8
+      },
+      "ambientSound": "wind_chimes"
+    },
+    {
+      "id": "overgrown_ruins",
+      "name": "Overgrown Ruins",
+      "description": "Ancient stone ruins reclaimed by bioluminescent plant life",
+      "elementAffinity": "grass",
+      "colors": {
+        "primary": "#00ff44",
+        "secondary": "#88ff00",
+        "grid": "#00aa33",
+        "ambient": "#001a08",
+        "sky": "#003311"
+      },
+      "effects": {
+        "vineGrowth": true,
+        "sporeParticles": true,
+        "bioluminescence": true,
+        "particleDensity": 0.7
+      },
+      "statModifiers": {
+        "grass": 1.2,
+        "earth": 0.8
+      },
+      "ambientSound": "jungle_ambient"
+    }
+  ]
+}
