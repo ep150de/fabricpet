@@ -5,8 +5,9 @@
 import { useEffect, useCallback } from 'react';
 import { useStore } from './store/useStore';
 import { loadStoredIdentity, hasNostrExtension, connectWithExtension, generateNewIdentity } from './nostr/identity';
-import { loadPetState } from './nostr/petStorage';
+import { loadPetState, savePetState } from './nostr/petStorage';
 import { decayNeeds } from './engine/NeedsSystem';
+import { saveLocalPet, loadLocalPet } from './store/localStorage';
 import { Navigation } from './components/Navigation';
 import { PetView } from './components/PetView';
 import { BattleScreen } from './components/BattleScreen';
@@ -42,15 +43,43 @@ export default function App() {
 
       setIdentity(id);
 
-      // Load pet state from Nostr
+      // === LOAD PET: localStorage first (instant), then Nostr (cross-device) ===
+      let bestPet: import('./types').Pet | null = null;
+      let bestTimestamp = 0;
+
+      // 1. Try localStorage (fast, reliable, survives republish)
+      const local = loadLocalPet();
+      if (local) {
+        bestPet = local.pet;
+        bestTimestamp = local.timestamp;
+        console.log('[Init] Loaded pet from localStorage, saved:', new Date(bestTimestamp).toLocaleString());
+      }
+
+      // 2. Try Nostr relays (cross-device sync)
       if (id) {
-        const savedPet = await loadPetState(id.pubkey);
-        if (savedPet) {
-          // Apply time-based decay since last interaction
-          const minutesElapsed = (Date.now() - savedPet.lastInteraction) / 60000;
-          const decayedPet = decayNeeds(savedPet, Math.min(minutesElapsed, 480)); // Cap at 8 hours
-          setPet(decayedPet);
+        try {
+          const nostrPet = await loadPetState(id.pubkey);
+          if (nostrPet) {
+            const nostrTimestamp = nostrPet.lastInteraction || 0;
+            if (nostrTimestamp > bestTimestamp) {
+              bestPet = nostrPet;
+              bestTimestamp = nostrTimestamp;
+              console.log('[Init] Nostr pet is newer, using Nostr data');
+            } else {
+              console.log('[Init] localStorage pet is newer, keeping local data');
+            }
+          }
+        } catch (e) {
+          console.warn('[Init] Nostr load failed, using localStorage:', e);
         }
+      }
+
+      // 3. Apply time-based decay and set pet
+      if (bestPet) {
+        const minutesElapsed = (Date.now() - bestPet.lastInteraction) / 60000;
+        const decayedPet = decayNeeds(bestPet, Math.min(minutesElapsed, 480));
+        setPet(decayedPet);
+        saveLocalPet(decayedPet); // Persist decayed state
       }
     } catch (error) {
       console.error('Initialization error:', error);
@@ -63,17 +92,38 @@ export default function App() {
     initialize();
   }, [initialize]);
 
-  // Periodic needs decay (every 30 seconds)
+  // Save to localStorage on every pet change
+  useEffect(() => {
+    if (pet) {
+      saveLocalPet(pet);
+    }
+  }, [pet]);
+
+  // Periodic needs decay (every 30 seconds) + save to localStorage
   useEffect(() => {
     if (!pet) return;
 
     const interval = setInterval(() => {
       const updatedPet = decayNeeds(pet, 0.5); // 0.5 minutes = 30 seconds
       setPet(updatedPet);
+      saveLocalPet(updatedPet);
     }, 30000);
 
     return () => clearInterval(interval);
   }, [pet, setPet]);
+
+  // Auto-save to Nostr every 2 minutes (cross-device sync)
+  useEffect(() => {
+    if (!pet || !identity) return;
+
+    const nostrInterval = setInterval(() => {
+      savePetState(identity, pet).then(ok => {
+        if (ok) console.log('[AutoSave] Pet synced to Nostr relays');
+      }).catch(() => {});
+    }, 120000); // 2 minutes
+
+    return () => clearInterval(nostrInterval);
+  }, [pet, identity]);
 
   // Loading screen
   if (isLoading) {
