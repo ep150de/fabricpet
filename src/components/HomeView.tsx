@@ -8,6 +8,7 @@ import { getStageEmoji, getMoodEmoji } from '../engine/PetStateMachine';
 import { getOverallHealth } from '../engine/NeedsSystem';
 import { HOME_THEMES, RP1_CONFIG } from '../utils/constants';
 import { checkMSFHealth } from '../rp1/MVMFBridge';
+import { fetchInscriptionContent, applyImageTextureToMesh, categorizeContentType, load3DModelFromContent } from '../avatar/OrdinalRenderer';
 
 export function HomeView() {
   const { pet, home, setHome, identity } = useStore();
@@ -161,6 +162,21 @@ export function HomeView() {
       petBody.position.set(0, 0.8, 0);
       scene.add(petBody);
 
+      // --- Load ordinal inscription as texture/model ---
+      if (pet.equippedOrdinal) {
+        fetchInscriptionContent(pet.equippedOrdinal).then(async (content) => {
+          if (!content || cleanup) return;
+          const category = categorizeContentType(content.contentType);
+          if (category === 'image') {
+            await applyImageTextureToMesh(content, petBody, THREE);
+          } else if (category === '3d-model') {
+            // Hide default sphere, load 3D model instead
+            petBody.visible = false;
+            await load3DModelFromContent(content, scene, THREE);
+          }
+        }).catch((e) => console.warn('[HomeView] Ordinal load failed:', e));
+      }
+
       // Eyes
       const eyeGeo = new THREE.SphereGeometry(0.07, 16, 16);
       const eyeMat = new THREE.MeshStandardMaterial({ color: 0xffffff });
@@ -262,7 +278,7 @@ export function HomeView() {
       cleanup = true;
       if (animationId) cancelAnimationFrame(animationId);
     };
-  }, [pet.elementalType]);
+  }, [pet.elementalType, pet.equippedOrdinal]);
 
   return (
     <div className="p-4 max-w-lg mx-auto">

@@ -8,6 +8,7 @@ import { getMoodEmoji, getStageEmoji, xpForNextLevel, addXP } from '../engine/Pe
 import { applyAction, getOverallHealth, getSuggestion, isCritical } from '../engine/NeedsSystem';
 import { evaluateBehavior, getReactionEmote } from '../engine/BehaviorTree';
 import { savePetState } from '../nostr/petStorage';
+import { getInscriptionPreviewUrl } from '../avatar/OrdinalRenderer';
 import type { PetNeeds } from '../types';
 
 const needsConfig: { key: keyof PetNeeds; label: string; emoji: string; color: string }[] = [
@@ -28,7 +29,18 @@ const actions = [
 export function PetView() {
   const { pet, setPet, identity, setNotification, currentBehavior, setCurrentBehavior } = useStore();
   const [reactionEmote, setReactionEmote] = useState<{ emoji: string; message: string } | null>(null);
+  const [ordinalPreview, setOrdinalPreview] = useState<string | null>(null);
   const behaviorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Load ordinal preview image
+  useEffect(() => {
+    if (!pet?.equippedOrdinal) { setOrdinalPreview(null); return; }
+    let cancelled = false;
+    getInscriptionPreviewUrl(pet.equippedOrdinal).then((url) => {
+      if (!cancelled) setOrdinalPreview(url);
+    });
+    return () => { cancelled = true; };
+  }, [pet?.equippedOrdinal]);
 
   // Run behavior tree
   useEffect(() => {
@@ -95,9 +107,17 @@ export function PetView() {
         }`} />
 
         <div className="relative text-center">
-          {/* Pet emoji/avatar */}
-          <div className={`text-8xl mb-2 ${critical ? 'animate-shake' : 'animate-float'}`}>
-            {getStageEmoji(pet.stage)}
+          {/* Pet emoji/avatar — ordinal image replaces emoji when equipped */}
+          <div className={`mb-2 ${critical ? 'animate-shake' : 'animate-float'}`}>
+            {ordinalPreview ? (
+              <img
+                src={ordinalPreview}
+                alt={`${pet.name} ordinal avatar`}
+                className="w-24 h-24 mx-auto rounded-full object-cover border-2 border-indigo-500/50 shadow-lg shadow-indigo-500/20"
+              />
+            ) : (
+              <span className="text-8xl">{getStageEmoji(pet.stage)}</span>
+            )}
           </div>
 
           {/* Reaction emote */}

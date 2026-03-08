@@ -2,8 +2,9 @@
 // Battle Screen — Pokémon-style turn-based battles
 // ============================================
 
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useStore } from '../store/useStore';
+import { publishChallenge, subscribeToChallenges, type BattleChallenge } from '../nostr/battleRelay';
 import { createBattle, executeTurn, calculateBattleXP, getBattleSummary } from '../battle/BattleEngine';
 import { getMove, MOVES } from '../engine/MoveDatabase';
 import { addXP, getStageEmoji } from '../engine/PetStateMachine';
@@ -40,6 +41,47 @@ export function BattleScreen() {
   const [selectedMove, setSelectedMove] = useState<string | null>(null);
   const [battleLog, setBattleLog] = useState<string[]>([]);
   const [isAnimating, setIsAnimating] = useState(false);
+  const [incomingChallenges, setIncomingChallenges] = useState<BattleChallenge[]>([]);
+  const [isPublishing, setIsPublishing] = useState(false);
+  const [challengePublished, setChallengePublished] = useState(false);
+
+  // Subscribe to incoming Nostr challenges
+  useEffect(() => {
+    if (!identity) return;
+    let unsub: (() => void) | null = null;
+
+    subscribeToChallenges(identity.pubkey, (challenge) => {
+      setIncomingChallenges(prev => {
+        // Deduplicate
+        if (prev.some(c => c.challengeId === challenge.challengeId)) return prev;
+        return [...prev, challenge];
+      });
+    }).then(fn => { unsub = fn; });
+
+    return () => { if (unsub) unsub(); };
+  }, [identity]);
+
+  const handlePublishChallenge = useCallback(async () => {
+    if (!identity || !pet) return;
+    setIsPublishing(true);
+    try {
+      await publishChallenge(
+        identity,
+        pet.name,
+        pet.level,
+        pet.elementalType,
+        { ...pet.battleStats },
+        pet.moves
+      );
+      setChallengePublished(true);
+      setNotification({ message: '📡 Challenge broadcast to Nostr!', emoji: '⚔️' });
+      setTimeout(() => setChallengePublished(false), 10000);
+    } catch (e) {
+      console.error('Failed to publish challenge:', e);
+      setNotification({ message: 'Failed to publish challenge', emoji: '❌' });
+    }
+    setIsPublishing(false);
+  }, [identity, pet, setNotification]);
 
   if (!pet) return null;
 
@@ -154,12 +196,26 @@ export function BattleScreen() {
             🤖 Practice Battle (vs CPU)
           </button>
 
-          <button
-            disabled
-            className="w-full bg-[#1a1a2e] border border-gray-700 text-gray-500 font-semibold py-4 rounded-xl cursor-not-allowed"
-          >
-            🌐 Challenge Player (via Nostr) — Coming Soon
-          </button>
+          {identity ? (
+            <button
+              onClick={handlePublishChallenge}
+              disabled={isPublishing || challengePublished}
+              className={`w-full font-semibold py-4 rounded-xl transition-all active:scale-98 ${
+                challengePublished
+                  ? 'bg-green-500/20 border border-green-500/50 text-green-300'
+                  : 'bg-gradient-to-r from-orange-500 to-red-500 text-white hover:from-orange-600 hover:to-red-600'
+              }`}
+            >
+              {isPublishing ? '📡 Broadcasting...' : challengePublished ? '✅ Challenge Live on Nostr!' : '🌐 Challenge Player (via Nostr)'}
+            </button>
+          ) : (
+            <button
+              disabled
+              className="w-full bg-[#1a1a2e] border border-gray-700 text-gray-500 font-semibold py-4 rounded-xl cursor-not-allowed"
+            >
+              🌐 Connect Wallet to Challenge Players
+            </button>
+          )}
 
           <button
             disabled
@@ -168,6 +224,53 @@ export function BattleScreen() {
             🏟️ Spatial Arena (RP1 Fabric) — Coming Soon
           </button>
         </div>
+
+        {/* Incoming Challenges */}
+        {incomingChallenges.length > 0 && (
+          <div className="bg-gradient-to-r from-orange-900/30 to-red-900/30 rounded-xl p-4 mt-4 border border-orange-500/30">
+            <h3 className="text-sm font-semibold text-orange-300 mb-3">📨 Incoming Challenges ({incomingChallenges.length})</h3>
+            <div className="space-y-2">
+              {incomingChallenges.slice(0, 5).map((challenge) => (
+                <div key={challenge.challengeId} className="bg-[#0f0f23] rounded-lg p-3 flex items-center justify-between">
+                  <div>
+                    <div className="text-sm text-white font-semibold">{challenge.challengerPetName}</div>
+                    <div className="text-xs text-gray-400">
+                      Lv.{challenge.challengerPetLevel} • {challenge.challengerPetType} type •{' '}
+                      <span className="text-gray-500">{challenge.challengerPubkey.slice(0, 8)}...</span>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => {
+                      // Start battle against the challenger's pet
+                      const battle = createBattle(
+                        'player',
+                        challenge.challengerPubkey,
+                        {
+                          name: pet.name,
+                          stats: { ...pet.battleStats },
+                          moves: pet.moves,
+                          elementalType: pet.elementalType,
+                        },
+                        {
+                          name: challenge.challengerPetName,
+                          stats: { ...challenge.challengerStats },
+                          moves: challenge.challengerMoves,
+                          elementalType: challenge.challengerPetType,
+                        }
+                      );
+                      setActiveBattle(battle);
+                      setBattleLog([`⚔️ ${pet.name} vs ${challenge.challengerPetName}! P2P Battle via Nostr!`]);
+                      setIncomingChallenges(prev => prev.filter(c => c.challengeId !== challenge.challengeId));
+                    }}
+                    className="bg-orange-500 hover:bg-orange-400 text-white text-xs font-bold px-3 py-2 rounded-lg transition-all"
+                  >
+                    ⚔️ Accept
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Battle Record */}
         <div className="bg-[#1a1a2e] rounded-xl p-4 mt-4 border border-gray-800">
