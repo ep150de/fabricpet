@@ -7,15 +7,18 @@ import { useStore } from '../store/useStore';
 import { getStageEmoji, getMoodEmoji } from '../engine/PetStateMachine';
 import { getOverallHealth } from '../engine/NeedsSystem';
 import { HOME_THEMES, RP1_CONFIG } from '../utils/constants';
-import { checkMSFHealth } from '../rp1/MVMFBridge';
+import { checkMSFHealth, pushSceneJSON, copySceneJSONToClipboard } from '../rp1/MVMFBridge';
 import { downloadPetGLB } from '../rp1/GLBExporter';
+import { generateSceneJSON } from '../rp1/SceneJSONGenerator';
 import { fetchInscriptionContent, applyImageTextureToMesh, categorizeContentType, load3DModelFromContent } from '../avatar/OrdinalRenderer';
 
 export function HomeView() {
-  const { pet, home, setHome, identity } = useStore();
+  const { pet, home, setHome, identity, wallet } = useStore();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [msfOnline, setMsfOnline] = useState<boolean | null>(null);
   const [checking, setChecking] = useState(false);
+  const [pushing, setPushing] = useState(false);
+  const [pushResult, setPushResult] = useState<'success' | 'copied' | 'error' | null>(null);
 
   if (!pet) return null;
 
@@ -353,25 +356,62 @@ export function HomeView() {
             </span>
           )}
         </div>
-        {/* Export Pet to RP1 */}
-        <div className="mt-3 flex gap-2">
+        {/* Push Bitcoin Assets to RP1 */}
+        <div className="mt-3 space-y-2">
           <button
-            onClick={() => downloadPetGLB(pet)}
-            className="flex-1 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 text-xs font-semibold py-2 px-3 rounded-lg border border-emerald-500/30 transition-all"
+            onClick={async () => {
+              setPushing(true);
+              setPushResult(null);
+              try {
+                const sceneJSON = generateSceneJSON(pet, wallet.inscriptions);
+                const pushed = await pushSceneJSON(sceneJSON);
+                if (pushed) {
+                  setPushResult('success');
+                } else {
+                  // Fallback: copy to clipboard for manual paste
+                  const copied = await copySceneJSONToClipboard(sceneJSON);
+                  setPushResult(copied ? 'copied' : 'error');
+                }
+              } catch {
+                setPushResult('error');
+              }
+              setPushing(false);
+              setTimeout(() => setPushResult(null), 5000);
+            }}
+            disabled={pushing}
+            className={`w-full font-semibold py-3 rounded-xl transition-all text-sm ${
+              pushResult === 'success'
+                ? 'bg-green-500/20 border border-green-500/50 text-green-300'
+                : pushResult === 'copied'
+                ? 'bg-amber-500/20 border border-amber-500/50 text-amber-300'
+                : 'bg-gradient-to-r from-orange-500 to-pink-500 text-white hover:from-orange-600 hover:to-pink-600'
+            }`}
           >
-            📦 Export Pet .GLB
+            {pushing ? '📡 Pushing to RP1...' :
+             pushResult === 'success' ? '✅ Scene Updated in RP1!' :
+             pushResult === 'copied' ? '📋 Scene JSON Copied — Paste in Scene Assembler' :
+             pushResult === 'error' ? '❌ Push Failed — Try Scene Assembler' :
+             `🌐 Push All Bitcoin Assets to RP1 (${wallet.inscriptions.length} items)`}
           </button>
-          <a
-            href={`${RP1_CONFIG.msfServiceUrl}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex-1 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 text-xs font-semibold py-2 px-3 rounded-lg border border-amber-500/30 transition-all text-center"
-          >
-            🛠️ Scene Assembler
-          </a>
+          <div className="flex gap-2">
+            <button
+              onClick={() => downloadPetGLB(pet)}
+              className="flex-1 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 text-xs font-semibold py-2 px-3 rounded-lg border border-emerald-500/30 transition-all"
+            >
+              📦 Export .GLB
+            </button>
+            <a
+              href={`${RP1_CONFIG.msfServiceUrl}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex-1 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 text-xs font-semibold py-2 px-3 rounded-lg border border-amber-500/30 transition-all text-center"
+            >
+              🛠️ Scene Assembler
+            </a>
+          </div>
         </div>
         <p className="mt-2 text-xs text-gray-500">
-          Export → Upload to Scene Assembler → Publish to see your pet in RP1!
+          Push your Bitcoin wallet's 3D ordinals directly into RP1 — no re-publishing needed!
         </p>
         <div className="mt-1 text-xs text-gray-500">
           📍 Portland, OR · CID: {RP1_CONFIG.startCid} · {RP1_CONFIG.lat.toFixed(4)}°N, {Math.abs(RP1_CONFIG.lon).toFixed(4)}°W

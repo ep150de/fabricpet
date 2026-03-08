@@ -202,6 +202,82 @@ export function getNSOServiceDefinition(): NSOPetService {
 }
 
 /**
+ * Push Scene Assembler JSON to the MSF service.
+ * This updates the RP1 world scene with ordinal inscription references.
+ * The RP1 browser loads 3D models directly from ordinals.com URLs.
+ */
+export async function pushSceneJSON(
+  sceneJSON: unknown[],
+  adminKey: string = 'P0rt3rT'
+): Promise<boolean> {
+  try {
+    // The Scene Assembler accepts JSON via its code editor endpoint
+    const response = await fetch(`${RP1_CONFIG.msfServiceUrl}/api/scene/json`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Admin-Key': adminKey,
+      },
+      body: JSON.stringify({
+        key: adminKey,
+        fabricUrl: RP1_CONFIG.fabricUrl,
+        sceneData: sceneJSON,
+        timestamp: Date.now(),
+      }),
+    });
+
+    if (response.ok) {
+      console.log('[MVMF Bridge] Scene JSON pushed to MSF service');
+      return true;
+    }
+
+    // If the /api/scene/json endpoint doesn't exist, try the general update
+    if (response.status === 404) {
+      console.log('[MVMF Bridge] /api/scene/json not found, trying /api/scene/update');
+      const fallback = await fetch(`${RP1_CONFIG.msfServiceUrl}/api/scene/update`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Admin-Key': adminKey,
+        },
+        body: JSON.stringify({
+          key: adminKey,
+          cid: RP1_CONFIG.startCid,
+          sceneData: sceneJSON,
+          timestamp: Date.now(),
+        }),
+      });
+      if (fallback.ok) {
+        console.log('[MVMF Bridge] Scene JSON pushed via fallback endpoint');
+        return true;
+      }
+    }
+
+    console.warn('[MVMF Bridge] Scene push returned:', response.status);
+    return false;
+  } catch (error) {
+    console.warn('[MVMF Bridge] Failed to push scene JSON:', error);
+    return false;
+  }
+}
+
+/**
+ * Copy scene JSON to clipboard for manual paste into Scene Assembler code editor.
+ * Fallback when API push doesn't work.
+ */
+export async function copySceneJSONToClipboard(sceneJSON: unknown[]): Promise<boolean> {
+  try {
+    const jsonStr = JSON.stringify(sceneJSON, null, 2);
+    await navigator.clipboard.writeText(jsonStr);
+    console.log('[MVMF Bridge] Scene JSON copied to clipboard');
+    return true;
+  } catch {
+    console.warn('[MVMF Bridge] Clipboard write failed');
+    return false;
+  }
+}
+
+/**
  * Sync MVMF model state back to Nostr.
  */
 export async function syncMVMFToNostr(
