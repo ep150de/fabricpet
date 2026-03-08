@@ -1,6 +1,8 @@
 // ============================================
 // GLB Exporter — Export pet as .glb for RP1 Scene Assembler
 // ============================================
+// Supports: sphere pet, image-textured pet, and 3D ordinal GLB pet
+// Mobile-friendly: uses Web Share API with fallback to new tab
 
 import type { Pet } from '../types';
 import { fetchInscriptionContent, categorizeContentType, createBlobUrl } from '../avatar/OrdinalRenderer';
@@ -12,8 +14,29 @@ const PET_COLORS: Record<string, number> = {
 
 /**
  * Generate a GLB blob of the pet model.
+ * If the equipped ordinal is a 3D GLB file, exports that directly.
+ * If it's an image, wraps it as a texture on the sphere.
+ * Otherwise, exports the colored sphere pet.
  */
 export async function exportPetAsGLB(pet: Pet): Promise<Blob> {
+  // Check if equipped ordinal is a 3D model — if so, return it directly
+  if (pet.equippedOrdinal) {
+    try {
+      const content = await fetchInscriptionContent(pet.equippedOrdinal);
+      if (content) {
+        const category = categorizeContentType(content.contentType);
+        if (category === '3d-model') {
+          // Return the raw GLB data directly from the ordinal
+          console.log('[GLBExporter] Exporting 3D ordinal inscription as GLB');
+          return new Blob([content.blob], { type: 'model/gltf-binary' });
+        }
+      }
+    } catch (e) {
+      console.warn('[GLBExporter] Failed to check ordinal type:', e);
+    }
+  }
+
+  // Otherwise, build the sphere pet scene
   const THREE = await import('three');
   const { GLTFExporter } = await import('three/examples/jsm/exporters/GLTFExporter.js');
 
@@ -27,7 +50,7 @@ export async function exportPetAsGLB(pet: Pet): Promise<Blob> {
   body.position.set(0, 0.5, 0);
   scene.add(body);
 
-  // Load ordinal texture if equipped
+  // Load ordinal image texture if equipped
   if (pet.equippedOrdinal) {
     try {
       const content = await fetchInscriptionContent(pet.equippedOrdinal);
@@ -51,30 +74,24 @@ export async function exportPetAsGLB(pet: Pet): Promise<Blob> {
   const eyeMat = new THREE.MeshStandardMaterial({ color: 0xffffff });
   const pupilGeo = new THREE.SphereGeometry(0.04, 16, 16);
   const pupilMat = new THREE.MeshStandardMaterial({ color: 0x222222 });
-
-  const le = new THREE.Mesh(eyeGeo, eyeMat);
-  le.position.set(-0.13, 0.6, 0.38);
-  scene.add(le);
-  const lp = new THREE.Mesh(pupilGeo, pupilMat);
-  lp.position.set(-0.13, 0.6, 0.43);
-  scene.add(lp);
-  const re = new THREE.Mesh(eyeGeo, eyeMat);
-  re.position.set(0.13, 0.6, 0.38);
-  scene.add(re);
-  const rp = new THREE.Mesh(pupilGeo, pupilMat);
-  rp.position.set(0.13, 0.6, 0.43);
-  scene.add(rp);
+  for (const side of [-1, 1]) {
+    const eye = new THREE.Mesh(eyeGeo, eyeMat);
+    eye.position.set(side * 0.13, 0.6, 0.38);
+    scene.add(eye);
+    const pupil = new THREE.Mesh(pupilGeo, pupilMat);
+    pupil.position.set(side * 0.13, 0.6, 0.43);
+    scene.add(pupil);
+  }
 
   // Blush
   const blushGeo = new THREE.SphereGeometry(0.06, 16, 16);
   blushGeo.scale(1.3, 0.7, 0.5);
   const blushMat = new THREE.MeshStandardMaterial({ color: 0xff9a9e, transparent: true, opacity: 0.6 });
-  const lb = new THREE.Mesh(blushGeo, blushMat);
-  lb.position.set(-0.25, 0.48, 0.35);
-  scene.add(lb);
-  const rb = new THREE.Mesh(blushGeo.clone(), blushMat);
-  rb.position.set(0.25, 0.48, 0.35);
-  scene.add(rb);
+  for (const side of [-1, 1]) {
+    const blush = new THREE.Mesh(side === 1 ? blushGeo.clone() : blushGeo, blushMat);
+    blush.position.set(side * 0.25, 0.48, 0.35);
+    scene.add(blush);
+  }
 
   // Export
   const exporter = new GLTFExporter();
@@ -83,16 +100,49 @@ export async function exportPetAsGLB(pet: Pet): Promise<Blob> {
 }
 
 /**
- * Download the pet GLB file.
+ * Download the pet GLB file — mobile-friendly with multiple fallbacks.
  */
 export async function downloadPetGLB(pet: Pet): Promise<void> {
   const blob = await exportPetAsGLB(pet);
+  const filename = `${pet.name.toLowerCase().replace(/\s+/g, '-')}-pet.glb`;
+
+  // Method 1: Web Share API (best for mobile)
+  if (navigator.share && navigator.canShare) {
+    try {
+      const file = new File([blob], filename, { type: 'model/gltf-binary' });
+      if (navigator.canShare({ files: [file] })) {
+        await navigator.share({
+          title: `${pet.name} - FabricPet GLB`,
+          text: 'My FabricPet 3D model for RP1',
+          files: [file],
+        });
+        return;
+      }
+    } catch (e) {
+      // User cancelled or share failed — fall through
+      if ((e as Error).name === 'AbortError') return;
+      console.warn('[GLBExporter] Web Share failed:', e);
+    }
+  }
+
+  // Method 2: Open blob in new tab (works on most mobile browsers)
   const url = URL.createObjectURL(blob);
+  const opened = window.open(url, '_blank');
+  if (opened) {
+    // Give the browser time to start the download, then clean up
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+    return;
+  }
+
+  // Method 3: Classic <a> download (desktop fallback)
   const a = document.createElement('a');
   a.href = url;
-  a.download = `${pet.name.toLowerCase().replace(/\s+/g, '-')}-pet.glb`;
+  a.download = filename;
+  a.style.display = 'none';
   document.body.appendChild(a);
   a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+  setTimeout(() => {
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }, 1000);
 }

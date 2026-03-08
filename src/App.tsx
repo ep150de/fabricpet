@@ -150,7 +150,7 @@ export default function App() {
       {notification && <Notification message={notification.message} emoji={notification.emoji} />}
 
       {/* Main Content */}
-      <main className="flex-1 overflow-y-auto pb-20">
+      <main className="flex-1 overflow-y-auto pb-28" style={{ paddingBottom: 'max(7rem, calc(5rem + env(safe-area-inset-bottom, 0px)))' }}>
         {currentView === 'home' && <HomeView />}
         {currentView === 'pet' && <PetView />}
         {currentView === 'battle' && <BattleScreen />}
