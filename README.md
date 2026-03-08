@@ -169,17 +169,38 @@ src/
 - [x] Ordinal trait → stat mapping
 - [x] Practice battles vs CPU
 
-### Phase 3 🔜 — Multiplayer + Social
-- [ ] P2P battles via Nostr events
+### Phase 1.5 ✅ — RP1 Scene Integration
+- [x] Scene Assembler JSON generator (dynamic Bitcoin-to-RP1)
+- [x] GLB export with Web Share API
+- [x] MVMF bridge with scene push
+- [x] Ordinals rendered directly from blockchain in RP1
+
+### Phase 6 ✅ — LLM Pet Chat Agent
+- [x] Ollama + vLLM + OpenAI-compatible endpoint support
+- [x] Dynamic personality system (elemental type, mood, stage, battle record)
+- [x] Streaming chat with conversation history
+- [x] Configurable settings (endpoint, model, temperature)
+
+### Phase 3A ✅ — HoloBall Arena Integration
+- [x] Full holoball-arena repo integrated (github.com/sayree121/holoball-arena)
+- [x] Arena system with 7 biomes (Cyber Grid, Volcanic Forge, Deep Ocean, Crystal Cavern, Void Nexus, Sky Temple, Overgrown Ruins)
+- [x] HoloBall system (throw, materialize, deploy, recall)
+- [x] Battle arena manager, visualizer, and camera system
+- [x] NSO services (Arena, Matchmaking, Spectator, Tournament)
+- [x] Spatial registration and proximity detection
+
+### Phase 3B-D 🔜 — Multiplayer + Social
+- [ ] P2P battles via Nostr events (relay code ready)
+- [ ] Challenge lobby UI
 - [ ] Leaderboard (NIP-78 aggregation)
 - [ ] Pet visiting via Nostr pubkeys
 - [ ] Guestbook signing
 
 ### Phase 4 🔜 — RP1 Spatial Integration
-- [ ] Connect MVMF bridge to RP1 SDK (when available)
-- [ ] Register spatial fabric nodes
-- [ ] Proximity-based visitor detection
-- [ ] Spatial battle arenas
+- [ ] Live scene sync (auto-push on wallet change)
+- [ ] Spatial visitor detection via proximity
+- [ ] Spatial battle arenas in RP1
+- [ ] Deep link handling
 
 ### Phase 5 🔜 — AR + Polish
 - [ ] WebXR AR mode (camera passthrough)
