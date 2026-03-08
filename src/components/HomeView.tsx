@@ -8,6 +8,7 @@ import { getStageEmoji, getMoodEmoji } from '../engine/PetStateMachine';
 import { getOverallHealth } from '../engine/NeedsSystem';
 import { HOME_THEMES, RP1_CONFIG } from '../utils/constants';
 import { checkMSFHealth } from '../rp1/MVMFBridge';
+import { downloadPetGLB } from '../rp1/GLBExporter';
 import { fetchInscriptionContent, applyImageTextureToMesh, categorizeContentType, load3DModelFromContent } from '../avatar/OrdinalRenderer';
 
 export function HomeView() {
@@ -352,7 +353,27 @@ export function HomeView() {
             </span>
           )}
         </div>
-        <div className="mt-2 text-xs text-gray-500">
+        {/* Export Pet to RP1 */}
+        <div className="mt-3 flex gap-2">
+          <button
+            onClick={() => downloadPetGLB(pet)}
+            className="flex-1 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 text-xs font-semibold py-2 px-3 rounded-lg border border-emerald-500/30 transition-all"
+          >
+            📦 Export Pet .GLB
+          </button>
+          <a
+            href={`${RP1_CONFIG.msfServiceUrl}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex-1 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 text-xs font-semibold py-2 px-3 rounded-lg border border-amber-500/30 transition-all text-center"
+          >
+            🛠️ Scene Assembler
+          </a>
+        </div>
+        <p className="mt-2 text-xs text-gray-500">
+          Export → Upload to Scene Assembler → Publish to see your pet in RP1!
+        </p>
+        <div className="mt-1 text-xs text-gray-500">
           📍 Portland, OR · CID: {RP1_CONFIG.startCid} · {RP1_CONFIG.lat.toFixed(4)}°N, {Math.abs(RP1_CONFIG.lon).toFixed(4)}°W
         </div>
       </div>
