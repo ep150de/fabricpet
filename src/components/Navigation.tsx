@@ -8,6 +8,7 @@ import type { AppView } from '../types';
 const navItems: { view: AppView; emoji: string; label: string }[] = [
   { view: 'home', emoji: '🏠', label: 'Home' },
   { view: 'pet', emoji: '🐾', label: 'Pet' },
+  { view: 'chat', emoji: '💬', label: 'Chat' },
   { view: 'battle', emoji: '⚔️', label: 'Battle' },
   { view: 'wallet', emoji: '💰', label: 'Wallet' },
 ];

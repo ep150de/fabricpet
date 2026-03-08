@@ -13,6 +13,7 @@ import { PetView } from './components/PetView';
 import { BattleScreen } from './components/BattleScreen';
 import { WalletView } from './components/WalletView';
 import { HomeView } from './components/HomeView';
+import { ChatView } from './components/ChatView';
 import { SetupScreen } from './components/SetupScreen';
 import { Notification } from './components/Notification';
 
@@ -153,6 +154,7 @@ export default function App() {
       <main className="flex-1 overflow-y-auto pb-28" style={{ paddingBottom: 'max(7rem, calc(5rem + env(safe-area-inset-bottom, 0px)))' }}>
         {currentView === 'home' && <HomeView />}
         {currentView === 'pet' && <PetView />}
+        {currentView === 'chat' && <ChatView />}
         {currentView === 'battle' && <BattleScreen />}
         {currentView === 'wallet' && <WalletView />}
       </main>
