@@ -81,18 +81,28 @@ export function ARView() {
     };
   }, []);
 
-  // 3D pet overlay on camera
+  // 3D pet overlay on camera — only init AFTER camera is ready (video playing)
   useEffect(() => {
-    if (!cameraActive || !canvasRef.current) return;
+    if (!cameraActive || !cameraReady || !canvasRef.current || !containerRef.current) return;
 
     const canvas = canvasRef.current;
-    const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
-    renderer.setSize(canvas.clientWidth, canvas.clientHeight);
+    const container = containerRef.current;
+
+    // Get actual container dimensions (not 0x0)
+    const width = container.clientWidth;
+    const height = container.clientHeight;
+
+    // Set canvas buffer size to match display size
+    canvas.width = width * window.devicePixelRatio;
+    canvas.height = height * window.devicePixelRatio;
+
+    const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true, premultipliedAlpha: false });
+    renderer.setSize(width, height);
     renderer.setPixelRatio(window.devicePixelRatio);
     renderer.setClearColor(0x000000, 0);
 
     const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(60, canvas.clientWidth / canvas.clientHeight, 0.1, 100);
+    const camera = new THREE.PerspectiveCamera(60, width / height, 0.1, 100);
     camera.position.set(0, 1, 3);
     camera.lookAt(0, 0.5, 0);
 
@@ -173,7 +183,7 @@ export function ARView() {
       cancelAnimationFrame(animId);
       renderer.dispose();
     };
-  }, [cameraActive, pet]);
+  }, [cameraActive, cameraReady, pet]);
 
   if (!pet) return null;
 

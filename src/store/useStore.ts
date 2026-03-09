@@ -20,6 +20,7 @@ interface AppState {
   pet: Pet | null;
   setPet: (pet: Pet | null) => void;
   updatePet: (updates: Partial<Pet>) => void;
+  updatePetFn: (fn: (prev: Pet) => Pet) => void;
 
   // --- Wallet ---
   wallet: WalletState;
@@ -60,6 +61,10 @@ export const useStore = create<AppState>((set) => ({
   updatePet: (updates) =>
     set((state) => ({
       pet: state.pet ? { ...state.pet, ...updates } : null,
+    })),
+  updatePetFn: (fn) =>
+    set((state) => ({
+      pet: state.pet ? fn(state.pet) : null,
     })),
 
   // --- Wallet ---

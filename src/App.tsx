@@ -124,17 +124,21 @@ export default function App() {
   }, [pet]);
 
   // Periodic needs decay (every 30 seconds) + save to localStorage
+  // Uses functional update to avoid stale closure overwriting battle records
+  const { updatePetFn } = useStore();
   useEffect(() => {
     if (!pet) return;
 
     const interval = setInterval(() => {
-      const updatedPet = decayNeeds(pet, 0.5); // 0.5 minutes = 30 seconds
-      setPet(updatedPet);
-      saveLocalPet(updatedPet);
+      updatePetFn((prev) => {
+        const updated = decayNeeds(prev, 0.5); // 0.5 minutes = 30 seconds
+        saveLocalPet(updated);
+        return updated;
+      });
     }, 30000);
 
     return () => clearInterval(interval);
-  }, [pet, setPet]);
+  }, [!!pet, updatePetFn]); // Only re-create when pet exists/doesn't exist
 
   // Auto-sync scene to RP1 when wallet inscriptions change
   useEffect(() => {

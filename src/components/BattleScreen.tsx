@@ -286,9 +286,27 @@ export function BattleScreen() {
         setNotification({ message: `${pet.name} reached level ${newPet.level}!`, emoji: '🎊' });
       }
 
-      // Save to Nostr
+      // Save to Nostr immediately (don't wait for 2-min auto-save)
       if (identity) {
-        savePetState(identity, newPet).catch(console.error);
+        savePetState(identity, newPet).then(ok => {
+          if (ok) {
+            console.log('[Battle] Pet saved to Nostr with updated record:', newPet.battleRecord);
+            setNotification({
+              message: won
+                ? `🏆 Victory! ${newPet.battleRecord.wins} wins recorded!`
+                : `Battle lost. ${newPet.battleRecord.losses} losses total.`,
+              emoji: won ? '🏆' : '💪',
+            });
+          }
+        }).catch(console.error);
+      } else {
+        // No identity — still show notification for local tracking
+        setNotification({
+          message: won
+            ? `🏆 Victory! ${newPet.battleRecord.wins} wins!`
+            : `Battle lost. Keep training!`,
+          emoji: won ? '🏆' : '💪',
+        });
       }
     }
   };
