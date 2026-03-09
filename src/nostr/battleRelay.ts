@@ -8,7 +8,8 @@
 // ============================================
 
 import type { NostrIdentity } from './identity';
-import { DEFAULT_RELAYS } from '../utils/constants';
+import { DEFAULT_RELAYS, NOSTR_KIND_APP_DATA } from '../utils/constants';
+import { getPool, getRelays } from './relayManager';
 import type { BattleStats, ElementalType } from '../types';
 
 // Battle event types
@@ -67,26 +68,30 @@ async function signEvent(
 }
 
 /**
- * Publish a signed event to Nostr relays with retry logic.
+ * Publish a signed event to Nostr relays using SimplePool.
+ * Much more reliable than raw Relay.connect() — pool manages connections.
  * Returns the number of relays that accepted the event.
  */
 async function publishToRelays(signedEvent: any): Promise<number> {
-  const { Relay } = await import('nostr-tools/relay');
+  const pool = getPool();
+  const relays = getRelays();
   let successCount = 0;
 
-  for (const relayUrl of DEFAULT_RELAYS) {
-    try {
-      const relay = await Promise.race([
-        Relay.connect(relayUrl),
-        new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timeout')), 5000)),
-      ]);
-      await relay.publish(signedEvent);
-      relay.close();
-      successCount++;
-      console.log(`[BattleRelay] ✅ Published to ${relayUrl}`);
-    } catch (e) {
-      console.warn(`[BattleRelay] ❌ Failed on ${relayUrl}:`, e);
+  try {
+    const results = await Promise.allSettled(
+      pool.publish(relays, signedEvent)
+    );
+
+    for (let i = 0; i < results.length; i++) {
+      if (results[i].status === 'fulfilled') {
+        successCount++;
+        console.log(`[BattleRelay] ✅ Published to ${relays[i]}`);
+      } else {
+        console.warn(`[BattleRelay] ❌ Failed on ${relays[i]}:`, (results[i] as PromiseRejectedResult).reason);
+      }
     }
+  } catch (e) {
+    console.error('[BattleRelay] Pool publish error:', e);
   }
 
   return successCount;
@@ -149,61 +154,47 @@ export async function publishChallenge(
 
 /**
  * Subscribe to incoming battle challenges for a given pubkey.
+ * Uses SimplePool for reliable connections.
  */
 export async function subscribeToChallenges(
   pubkey: string,
   onChallenge: (challenge: BattleChallenge) => void
 ): Promise<() => void> {
-  const { Relay } = await import('nostr-tools/relay');
+  const pool = getPool();
+  const relays = getRelays();
 
-  const closeFns: (() => void)[] = [];
-
-  for (const relayUrl of DEFAULT_RELAYS.slice(0, 2)) {
-    try {
-      const relay = await Promise.race([
-        Relay.connect(relayUrl),
-        new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timeout')), 5000)),
-      ]);
-
-      const sub = relay.subscribe(
-        [
-          {
-            kinds: [30078],
-            '#t': ['fabricpet-challenge'],
-            since: Math.floor(Date.now() / 1000) - 3600, // Last hour
-          },
-        ],
-        {
-          onevent(event) {
-            try {
-              const challenge = JSON.parse(event.content) as BattleChallenge;
-              if (
-                (challenge.targetPubkey === pubkey || challenge.targetPubkey === null) &&
-                challenge.challengerPubkey !== pubkey &&
-                challenge.status === 'open'
-              ) {
-                onChallenge(challenge);
-              }
-            } catch {
-              // Invalid event
-            }
-          },
-          oneose() {
-            console.log(`[BattleRelay] Subscribed to challenges on ${relayUrl}`);
-          },
+  try {
+    const sub = pool.subscribeMany(relays, [
+      {
+        kinds: [NOSTR_KIND_APP_DATA],
+        '#t': ['fabricpet-challenge'],
+        since: Math.floor(Date.now() / 1000) - 3600, // Last hour
+      } as Record<string, unknown>,
+    ] as unknown as Parameters<typeof pool.subscribeMany>[1], {
+      onevent(event) {
+        try {
+          const challenge = JSON.parse(event.content) as BattleChallenge;
+          if (
+            (challenge.targetPubkey === pubkey || challenge.targetPubkey === null) &&
+            challenge.challengerPubkey !== pubkey &&
+            challenge.status === 'open'
+          ) {
+            onChallenge(challenge);
+          }
+        } catch {
+          // Invalid event
         }
-      );
+      },
+      oneose() {
+        console.log('[BattleRelay] Subscribed to challenges via SimplePool');
+      },
+    });
 
-      closeFns.push(() => {
-        sub.close();
-        relay.close();
-      });
-    } catch (e) {
-      console.warn(`[BattleRelay] Failed to subscribe on ${relayUrl}:`, e);
-    }
+    return () => sub.close();
+  } catch (e) {
+    console.warn('[BattleRelay] Failed to subscribe to challenges:', e);
+    return () => {};
   }
-
-  return () => closeFns.forEach(fn => fn());
 }
 
 /**

@@ -77,19 +77,29 @@ function LeaderboardTab() {
   const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [loadTime, setLoadTime] = useState(0);
 
   const loadLeaderboard = useCallback(async () => {
     setLoading(true);
     setError(null);
+    setLoadTime(0);
+    const start = Date.now();
+
+    // Show elapsed time while loading
+    const timer = setInterval(() => {
+      setLoadTime(Math.floor((Date.now() - start) / 1000));
+    }, 1000);
+
     try {
-      const data = await fetchLeaderboard();
+      const data = await fetchLeaderboard(8000);
       setEntries(data);
       if (data.length === 0) {
-        setError('No players found yet. Be the first to save your pet to Nostr!');
+        setError('No players found yet. Save your pet (it auto-saves every 2 min) and refresh!');
       }
     } catch {
-      setError('Failed to load leaderboard');
+      setError('Failed to connect to Nostr relays. Check your internet and try again.');
     }
+    clearInterval(timer);
     setLoading(false);
   }, []);
 
@@ -106,20 +116,30 @@ function LeaderboardTab() {
           disabled={loading}
           className="text-xs text-indigo-400 hover:text-indigo-300"
         >
-          {loading ? '⏳ Loading...' : '🔄 Refresh'}
+          {loading ? `⏳ ${loadTime}s...` : '🔄 Refresh'}
         </button>
       </div>
 
       {error && (
-        <div className="bg-[#1a1a2e] rounded-xl p-4 border border-gray-800 text-center text-sm text-gray-400">
-          {error}
+        <div className="bg-[#1a1a2e] rounded-xl p-4 border border-gray-800 text-center">
+          <p className="text-sm text-gray-400">{error}</p>
+          <button
+            onClick={loadLeaderboard}
+            className="mt-2 text-xs text-indigo-400 hover:text-indigo-300 underline"
+          >
+            🔄 Try Again
+          </button>
         </div>
       )}
 
       {loading && entries.length === 0 && (
         <div className="text-center py-8">
           <div className="text-3xl animate-bounce mb-2">🏆</div>
-          <p className="text-gray-400 text-sm">Querying Nostr relays...</p>
+          <p className="text-gray-400 text-sm">Querying Nostr relays... ({loadTime}s)</p>
+          <p className="text-gray-600 text-xs mt-1">Checking relay.damus.io, nos.lol, and more</p>
+          {loadTime >= 5 && (
+            <p className="text-yellow-400/60 text-xs mt-2">Relays are slow today — hang tight!</p>
+          )}
         </div>
       )}
 
