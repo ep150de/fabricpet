@@ -10,6 +10,7 @@ import { evaluateBehavior, getReactionEmote } from '../engine/BehaviorTree';
 import { savePetState } from '../nostr/petStorage';
 import { getInscriptionPreviewUrl } from '../avatar/OrdinalRenderer';
 import { PetRosterBar } from './PetRosterBar';
+import { RP1ShareButton } from '../rp1/RP1ShareButton';
 import type { PetNeeds } from '../types';
 
 const needsConfig: { key: keyof PetNeeds; label: string; emoji: string; color: string }[] = [
@@ -259,6 +260,9 @@ export function PetView() {
       >
         📸 AR Mode — See {pet.name} in the Real World!
       </button>
+
+      {/* RP1 Metaverse Share */}
+      <RP1ShareButton className="mt-2" />
 
       {/* Force Save to Nostr */}
       <button

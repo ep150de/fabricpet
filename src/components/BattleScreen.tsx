@@ -28,7 +28,15 @@ const BIOMES = [
   { id: 'overgrown_ruins', name: 'Overgrown Ruins', emoji: '🌿', color: 'text-green-400', bg: 'from-green-900/40 to-emerald-900/40', element: 'earth', desc: 'Ancient ruins reclaimed by nature' },
 ] as const;
 
-function ArenaModePanel({ pet, startPracticeBattle }: { pet: Pet; startPracticeBattle: () => void }) {
+function ArenaModePanel({ pet, startPracticeBattle, onStartRPSSL, onPublishChallenge, identity, isPublishing, challengePublished }: {
+  pet: Pet;
+  startPracticeBattle: () => void;
+  onStartRPSSL: () => void;
+  onPublishChallenge: () => void;
+  identity: import('../nostr/identity').NostrIdentity | null;
+  isPublishing: boolean;
+  challengePublished: boolean;
+}) {
   const { arenaStatus, selectedBiome, setSelectedBiome, setArenaStatus, setMaterializationProgress, resetArena } = useArenaStore();
   const [materializing, setMaterializing] = useState(false);
 
@@ -132,6 +140,34 @@ function ArenaModePanel({ pet, startPracticeBattle }: { pet: Pet; startPracticeB
           <span className="text-blue-400">DEF:{pet.battleStats.def}</span>
           <span className="text-green-400">SPD:{pet.battleStats.spd}</span>
         </div>
+      </div>
+
+      {/* Arena Battle Options */}
+      <div className="space-y-2">
+        <button
+          onClick={onStartRPSSL}
+          className="w-full bg-gradient-to-r from-orange-500 to-pink-500 text-white font-semibold py-3 rounded-xl hover:from-orange-600 hover:to-pink-600 transition-all active:scale-98"
+        >
+          🎲 RPSSL Battle (vs CPU)
+        </button>
+
+        {identity ? (
+          <button
+            onClick={onPublishChallenge}
+            disabled={isPublishing || challengePublished}
+            className={`w-full font-semibold py-3 rounded-xl transition-all active:scale-98 ${
+              challengePublished
+                ? 'bg-green-500/20 border border-green-500/50 text-green-300'
+                : 'bg-gradient-to-r from-orange-500 to-red-500 text-white hover:from-orange-600 hover:to-red-600'
+            }`}
+          >
+            {isPublishing ? '📡 Broadcasting...' : challengePublished ? '✅ Challenge Live!' : '📡 Broadcast Challenge (Nostr)'}
+          </button>
+        ) : (
+          <div className="text-xs text-gray-500 text-center py-2">
+            🔒 Connect wallet to challenge other players
+          </div>
+        )}
       </div>
     </div>
   );
@@ -358,6 +394,75 @@ export function BattleScreen() {
           <p className="text-gray-400 mt-1">Challenge opponents to friendly battles!</p>
         </div>
 
+        {/* Incoming Challenges — visible in ALL modes */}
+        {incomingChallenges.length > 0 && (
+          <div className="bg-gradient-to-r from-orange-900/30 to-red-900/30 rounded-xl p-4 mb-4 border border-orange-500/30 animate-pulse-slow">
+            <h3 className="text-sm font-semibold text-orange-300 mb-3">
+              📨 Incoming Challenges ({incomingChallenges.length})
+            </h3>
+            <div className="space-y-2">
+              {incomingChallenges.slice(0, 5).map((challenge) => (
+                <div key={challenge.challengeId} className="bg-[#0f0f23] rounded-lg p-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <div>
+                      <div className="text-sm text-white font-semibold">{challenge.challengerPetName}</div>
+                      <div className="text-xs text-gray-400">
+                        Lv.{challenge.challengerPetLevel} • {challenge.challengerPetType} type •{' '}
+                        <span className="text-gray-500">{challenge.challengerPubkey.slice(0, 8)}...</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => {
+                        const battle = createBattle(
+                          'player',
+                          challenge.challengerPubkey,
+                          {
+                            name: pet.name,
+                            stats: { ...pet.battleStats },
+                            moves: pet.moves,
+                            elementalType: pet.elementalType,
+                          },
+                          {
+                            name: challenge.challengerPetName,
+                            stats: { ...challenge.challengerStats },
+                            moves: challenge.challengerMoves,
+                            elementalType: challenge.challengerPetType,
+                          }
+                        );
+                        setActiveBattle(battle);
+                        setBattleLog([`⚔️ ${pet.name} vs ${challenge.challengerPetName}! P2P Battle via Nostr!`]);
+                        setIncomingChallenges(prev => prev.filter(c => c.challengeId !== challenge.challengeId));
+                      }}
+                      className="flex-1 bg-orange-500 hover:bg-orange-400 text-white text-xs font-bold px-3 py-2 rounded-lg transition-all"
+                    >
+                      ⚔️ Turn-Based
+                    </button>
+                    <button
+                      onClick={() => {
+                        setIncomingChallenges(prev => prev.filter(c => c.challengeId !== challenge.challengeId));
+                        setShowRPS(true);
+                      }}
+                      className="flex-1 bg-purple-500 hover:bg-purple-400 text-white text-xs font-bold px-3 py-2 rounded-lg transition-all"
+                    >
+                      🎲 RPSSL
+                    </button>
+                    <button
+                      onClick={() => {
+                        setIncomingChallenges(prev => prev.filter(c => c.challengeId !== challenge.challengeId));
+                      }}
+                      className="bg-gray-700 hover:bg-gray-600 text-gray-300 text-xs px-2 py-2 rounded-lg transition-all"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Mode Tab Switcher */}
         <div className="flex gap-2 mb-4">
           <button
@@ -383,7 +488,17 @@ export function BattleScreen() {
         </div>
 
         {/* Arena Mode */}
-        {battleMode === 'arena' && <ArenaModePanel pet={pet} startPracticeBattle={startPracticeBattle} />}
+        {battleMode === 'arena' && (
+          <ArenaModePanel
+            pet={pet}
+            startPracticeBattle={startPracticeBattle}
+            onStartRPSSL={() => setShowRPS(true)}
+            onPublishChallenge={handlePublishChallenge}
+            identity={identity}
+            isPublishing={isPublishing}
+            challengePublished={challengePublished}
+          />
+        )}
 
         {/* Fight Mode */}
         {battleMode === 'fight' && <>
@@ -435,7 +550,7 @@ export function BattleScreen() {
             onClick={() => setShowRPS(true)}
             className="w-full bg-gradient-to-r from-orange-500 to-pink-500 text-white font-semibold py-4 rounded-xl hover:from-orange-600 hover:to-pink-600 transition-all active:scale-98"
           >
-            🎲 RPS Battle — Strike / Wind / Shield (Nostr Signed!)
+            🎲 RPSSL Battle — Strike / Guard / Slash / Venom / Arcane
           </button>
 
           {identity ? (
@@ -466,53 +581,6 @@ export function BattleScreen() {
             🏟️ HoloBall Arena Battle (Spatial Fabric)
           </button>
         </div>
-
-        {/* Incoming Challenges */}
-        {incomingChallenges.length > 0 && (
-          <div className="bg-gradient-to-r from-orange-900/30 to-red-900/30 rounded-xl p-4 mt-4 border border-orange-500/30">
-            <h3 className="text-sm font-semibold text-orange-300 mb-3">📨 Incoming Challenges ({incomingChallenges.length})</h3>
-            <div className="space-y-2">
-              {incomingChallenges.slice(0, 5).map((challenge) => (
-                <div key={challenge.challengeId} className="bg-[#0f0f23] rounded-lg p-3 flex items-center justify-between">
-                  <div>
-                    <div className="text-sm text-white font-semibold">{challenge.challengerPetName}</div>
-                    <div className="text-xs text-gray-400">
-                      Lv.{challenge.challengerPetLevel} • {challenge.challengerPetType} type •{' '}
-                      <span className="text-gray-500">{challenge.challengerPubkey.slice(0, 8)}...</span>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => {
-                      // Start battle against the challenger's pet
-                      const battle = createBattle(
-                        'player',
-                        challenge.challengerPubkey,
-                        {
-                          name: pet.name,
-                          stats: { ...pet.battleStats },
-                          moves: pet.moves,
-                          elementalType: pet.elementalType,
-                        },
-                        {
-                          name: challenge.challengerPetName,
-                          stats: { ...challenge.challengerStats },
-                          moves: challenge.challengerMoves,
-                          elementalType: challenge.challengerPetType,
-                        }
-                      );
-                      setActiveBattle(battle);
-                      setBattleLog([`⚔️ ${pet.name} vs ${challenge.challengerPetName}! P2P Battle via Nostr!`]);
-                      setIncomingChallenges(prev => prev.filter(c => c.challengeId !== challenge.challengeId));
-                    }}
-                    className="bg-orange-500 hover:bg-orange-400 text-white text-xs font-bold px-3 py-2 rounded-lg transition-all"
-                  >
-                    ⚔️ Accept
-                  </button>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
 
         {/* Battle Record */}
         <div className="bg-[#1a1a2e] rounded-xl p-4 mt-4 border border-gray-800">

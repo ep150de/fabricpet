@@ -13,11 +13,13 @@ export function ARView() {
   const { pet } = useStore();
   const [arSupported, setArSupported] = useState(false);
   const [cameraActive, setCameraActive] = useState(false);
+  const [webxrActive, setWebxrActive] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const xrSessionRef = useRef<any>(null);
   const [cameraReady, setCameraReady] = useState(false);
   const [cameraSupported, setCameraSupported] = useState(true);
   const [facingMode, setFacingMode] = useState<'environment' | 'user'>('environment');
@@ -47,6 +49,121 @@ export function ARView() {
         setArSupported(supported);
       }).catch(() => setArSupported(false));
     }
+  }, []);
+
+  // WebXR immersive-ar session — works on Meta Quest, Meta glasses, and WebXR-capable mobile browsers
+  const startWebXR = useCallback(async () => {
+    if (!('xr' in navigator)) {
+      setError('WebXR not supported on this browser.');
+      return;
+    }
+
+    try {
+      setError(null);
+      const xr = (navigator as any).xr;
+      const session = await xr.requestSession('immersive-ar', {
+        requiredFeatures: ['local-floor'],
+        optionalFeatures: ['hit-test', 'hand-tracking'],
+      });
+
+      xrSessionRef.current = session;
+      setWebxrActive(true);
+
+      // Create WebXR-compatible renderer
+      const canvas = document.createElement('canvas');
+      const gl = canvas.getContext('webgl2', { xrCompatible: true }) || canvas.getContext('webgl', { xrCompatible: true });
+      if (!gl) { setError('WebGL not available'); return; }
+
+      const renderer = new THREE.WebGLRenderer({ canvas, context: gl as any, alpha: true, antialias: true });
+      renderer.xr.enabled = true;
+      renderer.xr.setReferenceSpaceType('local-floor');
+      await renderer.xr.setSession(session);
+
+      const scene = new THREE.Scene();
+      const camera = new THREE.PerspectiveCamera(70, 1, 0.01, 100);
+
+      // Lighting
+      scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+      const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+      dirLight.position.set(2, 3, 2);
+      scene.add(dirLight);
+
+      // Pet sphere
+      const petColor = pet?.elementalType === 'fire' ? 0xff6b6b
+        : pet?.elementalType === 'water' ? 0x6bc5ff
+        : pet?.elementalType === 'earth' ? 0x6bff6b
+        : pet?.elementalType === 'air' ? 0xc5c5ff
+        : pet?.elementalType === 'light' ? 0xffff6b
+        : pet?.elementalType === 'dark' ? 0x9b6bff
+        : 0xffffff;
+
+      const petGeo = new THREE.SphereGeometry(0.15, 32, 32);
+      const petMat = new THREE.MeshToonMaterial({ color: petColor });
+      const petMesh = new THREE.Mesh(petGeo, petMat);
+      petMesh.position.set(0, 0.3, -1); // 1 meter in front, 30cm above floor
+      scene.add(petMesh);
+
+      // Eyes
+      const eyeGeo = new THREE.SphereGeometry(0.03, 16, 16);
+      const eyeMat = new THREE.MeshBasicMaterial({ color: 0x000000 });
+      const leftEye = new THREE.Mesh(eyeGeo, eyeMat);
+      leftEye.position.set(-0.06, 0.34, -0.86);
+      scene.add(leftEye);
+      const rightEye = new THREE.Mesh(eyeGeo, eyeMat);
+      rightEye.position.set(0.06, 0.34, -0.86);
+      scene.add(rightEye);
+
+      // Shadow
+      const shadowGeo = new THREE.CircleGeometry(0.12, 32);
+      const shadowMat = new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.2 });
+      const shadow = new THREE.Mesh(shadowGeo, shadowMat);
+      shadow.rotation.x = -Math.PI / 2;
+      shadow.position.set(0, 0.01, -1);
+      scene.add(shadow);
+
+      // XR render loop
+      renderer.setAnimationLoop((_time, frame) => {
+        const t = Date.now() * 0.001;
+        // Bounce
+        petMesh.position.y = 0.3 + Math.abs(Math.sin(t * 2)) * 0.06;
+        leftEye.position.y = petMesh.position.y + 0.04;
+        rightEye.position.y = petMesh.position.y + 0.04;
+        // Squash/stretch
+        const squash = 1 + Math.sin(t * 4) * 0.05;
+        petMesh.scale.set(1 / squash, squash, 1 / squash);
+        shadow.scale.setScalar(1 - Math.abs(Math.sin(t * 2)) * 0.2);
+
+        renderer.render(scene, camera);
+      });
+
+      // Cleanup on session end
+      session.addEventListener('end', () => {
+        setWebxrActive(false);
+        xrSessionRef.current = null;
+        renderer.setAnimationLoop(null);
+        renderer.dispose();
+        petGeo.dispose();
+        petMat.dispose();
+        eyeGeo.dispose();
+        eyeMat.dispose();
+        shadowGeo.dispose();
+        shadowMat.dispose();
+      });
+
+      console.log('[AR] WebXR immersive-ar session started');
+    } catch (e: any) {
+      setError(`WebXR error: ${e?.message || 'Failed to start session'}`);
+      console.error('[AR] WebXR error:', e);
+      setWebxrActive(false);
+    }
+  }, [pet]);
+
+  const stopWebXR = useCallback(() => {
+    if (xrSessionRef.current) {
+      xrSessionRef.current.end();
+      xrSessionRef.current = null;
+    }
+    setWebxrActive(false);
   }, []);
 
   // Camera passthrough — uses same simple pattern as QR scanner (proven to work)
@@ -272,13 +389,29 @@ export function ARView() {
             {cameraSupported ? '📸 Start Camera AR' : '📸 Camera Not Available'}
           </button>
 
-          {arSupported && (
+          {arSupported && !webxrActive && (
             <button
-              disabled
-              className="w-full bg-[#1a1a2e] border border-gray-700 text-gray-400 font-semibold py-4 rounded-xl"
+              onClick={startWebXR}
+              className="w-full bg-gradient-to-r from-cyan-500 to-teal-500 text-white font-semibold py-4 rounded-xl hover:from-cyan-600 hover:to-teal-600 transition-all active:scale-98"
             >
-              🥽 WebXR Immersive AR — Coming Soon
+              🥽 WebXR Immersive AR (Quest / Glasses)
             </button>
+          )}
+
+          {webxrActive && (
+            <div className="bg-gradient-to-r from-cyan-900/30 to-teal-900/30 rounded-xl p-4 border border-cyan-500/30 text-center">
+              <div className="text-4xl mb-2 animate-pulse">🥽</div>
+              <p className="text-sm text-cyan-300 font-semibold">WebXR Session Active!</p>
+              <p className="text-xs text-gray-400 mt-1">
+                {pet.name} is floating in your space. Look around!
+              </p>
+              <button
+                onClick={stopWebXR}
+                className="mt-3 bg-red-500/80 hover:bg-red-500 text-white text-sm font-bold px-4 py-2 rounded-lg transition-all"
+              >
+                ✕ End XR Session
+              </button>
+            </div>
           )}
 
           <div className="bg-[#1a1a2e] rounded-xl p-4 border border-gray-800 text-center">
@@ -287,8 +420,8 @@ export function ARView() {
               {pet.name} is ready to explore the real world!
             </p>
             <p className="text-xs text-gray-600 mt-1">
-              Camera AR overlays your pet on the camera feed.
-              {arSupported ? ' WebXR immersive AR is also supported on this device!' : ''}
+              📸 Camera AR overlays your pet on the camera feed.
+              {arSupported ? ' 🥽 WebXR works on Meta Quest, Meta glasses, and XR browsers!' : ''}
             </p>
           </div>
         </div>
