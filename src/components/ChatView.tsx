@@ -38,6 +38,7 @@ export function ChatView() {
   const [model, setModel] = useState(getLLMConfig().model);
   const [temperature, setTemperature] = useState(getLLMConfig().temperature);
   const [availableModels, setAvailableModels] = useState<string[]>([]);
+  const [apiKey, setApiKey] = useState(getLLMConfig().apiKey || '');
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -128,8 +129,8 @@ export function ChatView() {
   };
 
   const handleSaveSettings = async () => {
-    saveLLMConfig({ endpoint, provider, model, temperature });
-    const online = await checkLLMHealth({ endpoint, provider });
+    saveLLMConfig({ endpoint, provider, model, temperature, apiKey: apiKey || undefined });
+    const online = await checkLLMHealth({ endpoint, provider, apiKey: apiKey || undefined });
     setLlmOnline(online);
     if (online) {
       const models = await fetchAvailableModels({ endpoint, provider });
@@ -246,6 +247,36 @@ export function ChatView() {
               className="w-full bg-[#0f0f23] border border-gray-700 rounded px-2 py-1 text-xs text-white"
             />
           </div>
+
+          {/* API Key — needed for OpenRouter and other cloud providers */}
+          {provider !== 'ollama' && (
+            <div>
+              <label className="text-xs text-gray-500">API Key {endpoint.includes('openrouter') ? '(required)' : '(optional)'}</label>
+              <input
+                type="password"
+                value={apiKey}
+                onChange={(e) => setApiKey(e.target.value)}
+                placeholder={endpoint.includes('openrouter') ? 'sk-or-... (get free key at openrouter.ai/keys)' : 'API key (if required)'}
+                className="w-full bg-[#0f0f23] border border-gray-700 rounded px-2 py-1 text-xs text-white"
+              />
+              {endpoint.includes('openrouter') && !apiKey && (
+                <p className="text-xs text-orange-400 mt-1">
+                  ⚠️ OpenRouter requires a free API key → <a href="https://openrouter.ai/keys" target="_blank" rel="noopener" className="underline">openrouter.ai/keys</a>
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* Ollama CORS hint */}
+          {provider === 'ollama' && (
+            <div className="bg-[#0f0f23] rounded p-2 border border-gray-800">
+              <p className="text-xs text-gray-500">
+                💡 <strong className="text-gray-400">Ollama CORS:</strong> If connecting from a hosted site, start Ollama with:
+              </p>
+              <code className="text-xs text-cyan-400 block mt-1">OLLAMA_ORIGINS=* ollama serve</code>
+            </div>
+          )}
+
           <div>
             <label className="text-xs text-gray-500">Model</label>
             <div className="flex gap-1">

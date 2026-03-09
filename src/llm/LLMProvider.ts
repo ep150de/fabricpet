@@ -45,6 +45,7 @@ export interface LLMConfig {
   temperature: number;    // 0.0 - 2.0
   maxTokens: number;      // max response tokens
   systemPrompt: string;   // pet personality prompt
+  apiKey?: string;         // API key for OpenRouter / OpenAI-compatible endpoints
 }
 
 export interface ChatMessage {
@@ -250,10 +251,18 @@ async function ollamaChatStream(
 // OpenAI-Compatible Provider (vLLM, etc.)
 // ============================================
 
+function buildHeaders(cfg: LLMConfig): Record<string, string> {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (cfg.apiKey) {
+    headers['Authorization'] = `Bearer ${cfg.apiKey}`;
+  }
+  return headers;
+}
+
 async function openAICompatibleChat(messages: ChatMessage[], cfg: LLMConfig): Promise<LLMResponse> {
   const res = await fetch(`${cfg.endpoint}/v1/chat/completions`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: buildHeaders(cfg),
     body: JSON.stringify({
       model: cfg.model,
       messages,
@@ -281,7 +290,7 @@ async function openAICompatibleChatStream(
 ): Promise<LLMResponse> {
   const res = await fetch(`${cfg.endpoint}/v1/chat/completions`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: buildHeaders(cfg),
     body: JSON.stringify({
       model: cfg.model,
       messages,

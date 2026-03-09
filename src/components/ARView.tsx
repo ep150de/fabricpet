@@ -241,109 +241,133 @@ export function ARView() {
 
     const canvas = canvasRef.current;
     const container = containerRef.current;
+    let cancelled = false;
+    let loopAnimId: number;
+    let renderer: THREE.WebGLRenderer | null = null;
+    const geometries: THREE.BufferGeometry[] = [];
+    const materials: THREE.Material[] = [];
 
-    // Get actual container dimensions (not 0x0)
-    const width = container.clientWidth;
-    const height = container.clientHeight;
+    const initThreeJS = () => {
+      if (cancelled) return;
 
-    // Set canvas buffer size to match display size
-    canvas.width = width * window.devicePixelRatio;
-    canvas.height = height * window.devicePixelRatio;
+      const width = container.clientWidth;
+      const height = container.clientHeight;
+      if (width === 0 || height === 0) {
+        loopAnimId = requestAnimationFrame(initThreeJS);
+        return;
+      }
 
-    const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true, premultipliedAlpha: false });
-    renderer.setSize(width, height);
-    renderer.setPixelRatio(window.devicePixelRatio);
-    renderer.setClearColor(0x000000, 0);
+      canvas.width = width * window.devicePixelRatio;
+      canvas.height = height * window.devicePixelRatio;
 
-    const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(60, width / height, 0.1, 100);
-    camera.position.set(0, 1, 3);
-    camera.lookAt(0, 0.5, 0);
+      try {
+        renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true, premultipliedAlpha: false });
+      } catch (e) {
+        console.error('[AR] WebGLRenderer failed to initialize:', e);
+        setError('WebGL failed to initialize. Try closing other tabs or apps using the GPU.');
+        return;
+      }
 
-    // Lighting
-    const ambient = new THREE.AmbientLight(0xffffff, 0.6);
-    scene.add(ambient);
-    const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
-    dirLight.position.set(2, 3, 2);
-    scene.add(dirLight);
+      canvas.addEventListener('webglcontextlost', (e) => {
+        e.preventDefault();
+        console.warn('[AR] WebGL context lost');
+        setError('WebGL context lost — GPU may be overloaded. Try again.');
+      });
 
-    // Pet sphere (cute bouncing ball)
-    const petColor = pet?.elementalType === 'fire' ? 0xff6b6b
-      : pet?.elementalType === 'water' ? 0x6bc5ff
-      : pet?.elementalType === 'earth' ? 0x6bff6b
-      : pet?.elementalType === 'air' ? 0xc5c5ff
-      : pet?.elementalType === 'light' ? 0xffff6b
-      : pet?.elementalType === 'dark' ? 0x9b6bff
-      : 0xffffff;
+      renderer.setSize(width, height);
+      renderer.setPixelRatio(window.devicePixelRatio);
+      renderer.setClearColor(0x000000, 0);
 
-    const petGeo = new THREE.SphereGeometry(0.4, 32, 32);
-    const petMat = new THREE.MeshToonMaterial({ color: petColor });
-    const petMesh = new THREE.Mesh(petGeo, petMat);
-    petMesh.position.set(0, 0.5, 0);
-    scene.add(petMesh);
+      const scene = new THREE.Scene();
+      const cam = new THREE.PerspectiveCamera(60, width / height, 0.1, 100);
+      cam.position.set(0, 1, 3);
+      cam.lookAt(0, 0.5, 0);
 
-    // Eyes
-    const eyeGeo = new THREE.SphereGeometry(0.08, 16, 16);
-    const eyeMat = new THREE.MeshBasicMaterial({ color: 0x000000 });
-    const leftEye = new THREE.Mesh(eyeGeo, eyeMat);
-    leftEye.position.set(-0.15, 0.6, 0.35);
-    scene.add(leftEye);
-    const rightEye = new THREE.Mesh(eyeGeo, eyeMat);
-    rightEye.position.set(0.15, 0.6, 0.35);
-    scene.add(rightEye);
+      const ambient = new THREE.AmbientLight(0xffffff, 0.6);
+      scene.add(ambient);
+      const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+      dirLight.position.set(2, 3, 2);
+      scene.add(dirLight);
 
-    // Eye highlights
-    const highlightGeo = new THREE.SphereGeometry(0.03, 8, 8);
-    const highlightMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
-    const lh = new THREE.Mesh(highlightGeo, highlightMat);
-    lh.position.set(-0.12, 0.63, 0.4);
-    scene.add(lh);
-    const rh = new THREE.Mesh(highlightGeo, highlightMat);
-    rh.position.set(0.18, 0.63, 0.4);
-    scene.add(rh);
+      const petColor = pet?.elementalType === 'fire' ? 0xff6b6b
+        : pet?.elementalType === 'water' ? 0x6bc5ff
+        : pet?.elementalType === 'earth' ? 0x6bff6b
+        : pet?.elementalType === 'air' ? 0xc5c5ff
+        : pet?.elementalType === 'light' ? 0xffff6b
+        : pet?.elementalType === 'dark' ? 0x9b6bff
+        : 0xffffff;
 
-    // Shadow circle
-    const shadowGeo = new THREE.CircleGeometry(0.3, 32);
-    const shadowMat = new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.2 });
-    const shadow = new THREE.Mesh(shadowGeo, shadowMat);
-    shadow.rotation.x = -Math.PI / 2;
-    shadow.position.y = 0.01;
-    scene.add(shadow);
+      const petGeo = new THREE.SphereGeometry(0.4, 32, 32);
+      const petMat = new THREE.MeshToonMaterial({ color: petColor });
+      const petMesh = new THREE.Mesh(petGeo, petMat);
+      petMesh.position.set(0, 0.5, 0);
+      scene.add(petMesh);
+      geometries.push(petGeo);
+      materials.push(petMat);
 
-    let animId: number;
-    const animate = () => {
-      animId = requestAnimationFrame(animate);
-      const t = Date.now() * 0.001;
+      const eyeGeo = new THREE.SphereGeometry(0.08, 16, 16);
+      const eyeMat = new THREE.MeshBasicMaterial({ color: 0x000000 });
+      const leftEye = new THREE.Mesh(eyeGeo, eyeMat);
+      leftEye.position.set(-0.15, 0.6, 0.35);
+      scene.add(leftEye);
+      const rightEye = new THREE.Mesh(eyeGeo, eyeMat);
+      rightEye.position.set(0.15, 0.6, 0.35);
+      scene.add(rightEye);
+      geometries.push(eyeGeo);
+      materials.push(eyeMat);
 
-      // Bounce
-      petMesh.position.y = 0.5 + Math.abs(Math.sin(t * 2)) * 0.15;
-      leftEye.position.y = petMesh.position.y + 0.1;
-      rightEye.position.y = petMesh.position.y + 0.1;
-      lh.position.y = petMesh.position.y + 0.13;
-      rh.position.y = petMesh.position.y + 0.13;
+      const highlightGeo = new THREE.SphereGeometry(0.03, 8, 8);
+      const highlightMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+      const lh = new THREE.Mesh(highlightGeo, highlightMat);
+      lh.position.set(-0.12, 0.63, 0.4);
+      scene.add(lh);
+      const rh = new THREE.Mesh(highlightGeo, highlightMat);
+      rh.position.set(0.18, 0.63, 0.4);
+      scene.add(rh);
+      geometries.push(highlightGeo);
+      materials.push(highlightMat);
 
-      // Squash/stretch
-      const squash = 1 + Math.sin(t * 4) * 0.05;
-      petMesh.scale.set(1 / squash, squash, 1 / squash);
+      const shadowGeo = new THREE.CircleGeometry(0.3, 32);
+      const shadowMat = new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.2 });
+      const shadow = new THREE.Mesh(shadowGeo, shadowMat);
+      shadow.rotation.x = -Math.PI / 2;
+      shadow.position.y = 0.01;
+      scene.add(shadow);
+      geometries.push(shadowGeo);
+      materials.push(shadowMat);
 
-      // Shadow scale
-      shadow.scale.setScalar(1 - Math.abs(Math.sin(t * 2)) * 0.2);
+      const animate = () => {
+        if (cancelled) return;
+        loopAnimId = requestAnimationFrame(animate);
+        const t = Date.now() * 0.001;
 
-      renderer.render(scene, camera);
+        petMesh.position.y = 0.5 + Math.abs(Math.sin(t * 2)) * 0.15;
+        leftEye.position.y = petMesh.position.y + 0.1;
+        rightEye.position.y = petMesh.position.y + 0.1;
+        lh.position.y = petMesh.position.y + 0.13;
+        rh.position.y = petMesh.position.y + 0.13;
+
+        const squash = 1 + Math.sin(t * 4) * 0.05;
+        petMesh.scale.set(1 / squash, squash, 1 / squash);
+        shadow.scale.setScalar(1 - Math.abs(Math.sin(t * 2)) * 0.2);
+
+        if (renderer) renderer.render(scene, cam);
+      };
+      animate();
     };
-    animate();
 
-    // Collect all disposables for cleanup
-    const geometries = [petGeo, eyeGeo, highlightGeo, shadowGeo];
-    const materials = [petMat, eyeMat, highlightMat, shadowMat];
+    // Start on next frame to ensure layout is ready
+    loopAnimId = requestAnimationFrame(initThreeJS);
 
     return () => {
-      cancelAnimationFrame(animId);
-      // Properly dispose Three.js resources to prevent memory leaks
+      cancelled = true;
+      cancelAnimationFrame(loopAnimId);
       geometries.forEach(g => g.dispose());
       materials.forEach(m => m.dispose());
-      renderer.dispose();
-      renderer.forceContextLoss();
+      if (renderer) {
+        renderer.dispose();
+        renderer.forceContextLoss();
+      }
     };
   }, [cameraActive, cameraReady, pet]);
 

@@ -7,7 +7,7 @@ export const DEFAULT_RELAYS = [
   'wss://relay.nostr.band',   // Best for indexing/discovery (supports all tag queries)
   'wss://nos.lol',            // Reliable, good uptime
   'wss://relay.primal.net',   // Primal relay — good uptime
-  'wss://purplepag.es',       // Good NIP-78 indexing relay
+  'wss://relay.nostr.info',   // Supports NIP-78 kind 30078 (purplepag.es rejects it)
   'wss://relay.snort.social',
   'wss://relay.damus.io',     // Sometimes unreliable — keep as fallback
 ];
