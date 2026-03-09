@@ -1,7 +1,7 @@
 // ============================================
-// RPS Battle Screen — Rock-Paper-Scissors mini-game
+// RPSSL Battle Screen — Rock-Paper-Scissors-Spock-Lizard
 // ============================================
-// Pick Strike/Wind/Shield → sign & commit to Nostr → reveal → resolve damage.
+// Pick Strike/Guard/Slash/Venom/Arcane → sign & commit to Nostr → reveal → resolve damage.
 // Each move is a signed Nostr event — verifiable battle log!
 // ============================================
 
@@ -20,6 +20,7 @@ import {
   getChoiceDisplay,
   calculateRPSXP,
   getRPSSummary,
+  RPSSL_LEGEND,
   type RPSChoice,
   type RPSBattleState,
 } from '../battle/RPSEngine';
@@ -191,25 +192,17 @@ export function RPSBattleScreen({ onBack }: RPSBattleScreenProps) {
           <p className="text-gray-400 text-sm mt-1">Rock-Paper-Scissors with Nostr signing!</p>
         </div>
 
-        {/* How it works */}
+        {/* RPSSL Legend — What beats what */}
         <div className="bg-[#1a1a2e] rounded-xl p-4 border border-gray-800 mb-4">
-          <h3 className="text-sm font-semibold text-cyan-300 mb-2">⚡ How It Works</h3>
-          <div className="grid grid-cols-3 gap-2 mb-3">
-            <div className="text-center p-2 bg-[#0f0f23] rounded-lg">
-              <div className="text-2xl">🔥</div>
-              <div className="text-xs text-gray-400 mt-1">Strike</div>
-              <div className="text-xs text-green-400">beats Wind</div>
-            </div>
-            <div className="text-center p-2 bg-[#0f0f23] rounded-lg">
-              <div className="text-2xl">💨</div>
-              <div className="text-xs text-gray-400 mt-1">Wind</div>
-              <div className="text-xs text-green-400">beats Shield</div>
-            </div>
-            <div className="text-center p-2 bg-[#0f0f23] rounded-lg">
-              <div className="text-2xl">🛡️</div>
-              <div className="text-xs text-gray-400 mt-1">Shield</div>
-              <div className="text-xs text-green-400">beats Strike</div>
-            </div>
+          <h3 className="text-sm font-semibold text-cyan-300 mb-2">⚡ RPSSL — What Beats What</h3>
+          <div className="space-y-1.5 mb-3">
+            {RPSSL_LEGEND.map((item) => (
+              <div key={item.choice} className="flex items-center gap-2 bg-[#0f0f23] rounded-lg px-3 py-1.5">
+                <span className="text-lg w-7 text-center">{item.emoji}</span>
+                <span className="text-xs font-semibold text-white w-14">{item.name}</span>
+                <span className="text-xs text-gray-400 flex-1">{item.beats}</span>
+              </div>
+            ))}
           </div>
           <p className="text-xs text-gray-500 text-center">
             Each move is signed & committed to Nostr relays — verifiable battle log! ✍️
@@ -388,23 +381,42 @@ export function RPSBattleScreen({ onBack }: RPSBattleScreenProps) {
         </div>
       )}
 
-      {/* Move Picker */}
+      {/* Move Picker — 5 RPSSL choices */}
       {rpsBattle.status === 'active' && !isCommitting && (
         <div className="mb-4">
           <div className="text-xs text-gray-400 text-center mb-2">Pick your move:</div>
-          <div className="grid grid-cols-3 gap-3">
-            {(['strike', 'wind', 'shield'] as RPSChoice[]).map((choice) => {
+          {/* Top row: 3 choices */}
+          <div className="grid grid-cols-3 gap-2 mb-2">
+            {(['strike', 'guard', 'slash'] as RPSChoice[]).map((choice) => {
               const display = getChoiceDisplay(choice);
               const flavorName = getFlavorName(choice, pet.elementalType);
               return (
                 <button
                   key={choice}
                   onClick={() => handlePickMove(choice)}
-                  className="bg-[#1a1a2e] border border-gray-700 hover:border-indigo-500/50 hover:bg-indigo-500/10 rounded-xl p-4 text-center transition-all active:scale-95"
+                  className="bg-[#1a1a2e] border border-gray-700 hover:border-indigo-500/50 hover:bg-indigo-500/10 rounded-xl p-3 text-center transition-all active:scale-95"
                 >
-                  <div className="text-4xl mb-2">{display.emoji}</div>
-                  <div className="text-sm font-semibold text-white">{display.name}</div>
-                  <div className="text-xs text-gray-500 mt-1">{flavorName}</div>
+                  <div className="text-3xl mb-1">{display.emoji}</div>
+                  <div className="text-xs font-semibold text-white">{display.name}</div>
+                  <div className="text-[10px] text-gray-500 mt-0.5 truncate">{flavorName}</div>
+                </button>
+              );
+            })}
+          </div>
+          {/* Bottom row: 2 choices centered */}
+          <div className="grid grid-cols-2 gap-2 max-w-[66%] mx-auto">
+            {(['venom', 'arcane'] as RPSChoice[]).map((choice) => {
+              const display = getChoiceDisplay(choice);
+              const flavorName = getFlavorName(choice, pet.elementalType);
+              return (
+                <button
+                  key={choice}
+                  onClick={() => handlePickMove(choice)}
+                  className="bg-[#1a1a2e] border border-gray-700 hover:border-indigo-500/50 hover:bg-indigo-500/10 rounded-xl p-3 text-center transition-all active:scale-95"
+                >
+                  <div className="text-3xl mb-1">{display.emoji}</div>
+                  <div className="text-xs font-semibold text-white">{display.name}</div>
+                  <div className="text-[10px] text-gray-500 mt-0.5 truncate">{flavorName}</div>
                 </button>
               );
             })}

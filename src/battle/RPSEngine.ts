@@ -1,10 +1,12 @@
 // ============================================
-// RPS Battle Engine — Rock-Paper-Scissors style mini-game
+// RPSSL Battle Engine — Rock-Paper-Scissors-Spock-Lizard
 // ============================================
-// Turn-based RPS with elemental flavor:
-//   🔥 Strike  beats  💨 Wind
-//   💨 Wind    beats  🛡️ Shield
-//   🛡️ Shield  beats  🔥 Strike
+// Turn-based RPSSL with elemental flavor (5 choices):
+//   ✊ Strike  crushes  ✂️ Slash  &  🦎 Venom
+//   📜 Guard   covers   ✊ Strike &  disproves  🖖 Arcane
+//   ✂️ Slash   cuts     📜 Guard  &  decapitates 🦎 Venom
+//   🦎 Venom   poisons  🖖 Arcane &  eats       📜 Guard
+//   🖖 Arcane  smashes  ✂️ Slash  &  vaporizes  ✊ Strike
 //
 // Each round: both players pick → commit to Nostr → reveal → resolve damage.
 // First pet to 0 HP loses.
@@ -15,7 +17,7 @@ import { simpleHash } from '../utils/hash';
 
 // --- Types ---
 
-export type RPSChoice = 'strike' | 'wind' | 'shield';
+export type RPSChoice = 'strike' | 'guard' | 'slash' | 'venom' | 'arcane';
 
 export interface RPSRound {
   round: number;
@@ -44,52 +46,108 @@ export interface RPSBattleState {
 // --- Constants ---
 
 const RPS_EMOJI: Record<RPSChoice, string> = {
-  strike: '🔥',
-  wind: '💨',
-  shield: '🛡️',
+  strike: '✊',
+  guard: '📜',
+  slash: '✂️',
+  venom: '🦎',
+  arcane: '🖖',
 };
 
 const RPS_NAMES: Record<RPSChoice, string> = {
   strike: 'Strike',
-  wind: 'Wind',
-  shield: 'Shield',
+  guard: 'Guard',
+  slash: 'Slash',
+  venom: 'Venom',
+  arcane: 'Arcane',
 };
+
+/**
+ * RPSSL win table — each choice beats exactly 2 others.
+ * strike  crushes slash & venom
+ * guard   covers strike & disproves arcane
+ * slash   cuts guard & decapitates venom
+ * venom   poisons arcane & eats guard
+ * arcane  smashes slash & vaporizes strike
+ */
+const WINS_AGAINST: Record<RPSChoice, RPSChoice[]> = {
+  strike: ['slash', 'venom'],
+  guard:  ['strike', 'arcane'],
+  slash:  ['guard', 'venom'],
+  venom:  ['arcane', 'guard'],
+  arcane: ['slash', 'strike'],
+};
+
+/** Win verb descriptions for battle messages */
+const WIN_VERBS: Record<string, string> = {
+  'strike>slash': 'crushes',
+  'strike>venom': 'crushes',
+  'guard>strike': 'covers',
+  'guard>arcane': 'disproves',
+  'slash>guard': 'cuts',
+  'slash>venom': 'decapitates',
+  'venom>arcane': 'poisons',
+  'venom>guard': 'eats',
+  'arcane>slash': 'smashes',
+  'arcane>strike': 'vaporizes',
+};
+
+/** Legend data for UI display */
+export const RPSSL_LEGEND: Array<{ choice: RPSChoice; emoji: string; name: string; beats: string }> = [
+  { choice: 'strike', emoji: '✊', name: 'Strike', beats: 'crushes ✂️ Slash & 🦎 Venom' },
+  { choice: 'guard',  emoji: '📜', name: 'Guard',  beats: 'covers ✊ Strike & disproves 🖖 Arcane' },
+  { choice: 'slash',  emoji: '✂️', name: 'Slash',  beats: 'cuts 📜 Guard & decapitates 🦎 Venom' },
+  { choice: 'venom',  emoji: '🦎', name: 'Venom',  beats: 'poisons 🖖 Arcane & eats 📜 Guard' },
+  { choice: 'arcane', emoji: '🖖', name: 'Arcane', beats: 'smashes ✂️ Slash & vaporizes ✊ Strike' },
+];
 
 // Elemental flavor names (cosmetic only)
 const ELEMENTAL_STRIKE: Record<string, string> = {
-  fire: '🔥 Flame Strike', water: '💧 Hydro Slash', earth: '🌿 Vine Whip',
-  air: '💨 Gale Force', light: '✨ Radiant Blow', dark: '🌑 Shadow Strike',
+  fire: '🔥 Flame Strike', water: '💧 Hydro Slam', earth: '🌿 Vine Crush',
+  air: '💨 Gale Fist', light: '✨ Radiant Blow', dark: '🌑 Shadow Punch',
   neutral: '⚡ Power Strike',
 };
 
-const ELEMENTAL_WIND: Record<string, string> = {
-  fire: '🔥 Heat Wave', water: '💧 Tidal Gust', earth: '🌿 Leaf Storm',
-  air: '💨 Cyclone', light: '✨ Light Breeze', dark: '🌑 Dark Gale',
-  neutral: '💨 Swift Wind',
-};
-
-const ELEMENTAL_SHIELD: Record<string, string> = {
+const ELEMENTAL_GUARD: Record<string, string> = {
   fire: '🔥 Flame Wall', water: '💧 Aqua Shield', earth: '🌿 Root Guard',
   air: '💨 Wind Barrier', light: '✨ Holy Ward', dark: '🌑 Shadow Veil',
-  neutral: '🛡️ Iron Guard',
+  neutral: '📜 Iron Guard',
+};
+
+const ELEMENTAL_SLASH: Record<string, string> = {
+  fire: '🔥 Fire Slash', water: '💧 Hydro Blade', earth: '🌿 Leaf Cutter',
+  air: '💨 Wind Slash', light: '✨ Light Saber', dark: '🌑 Dark Cleave',
+  neutral: '✂️ Swift Slash',
+};
+
+const ELEMENTAL_VENOM: Record<string, string> = {
+  fire: '🔥 Magma Spit', water: '💧 Toxic Spray', earth: '🌿 Spore Cloud',
+  air: '💨 Poison Mist', light: '✨ Blinding Venom', dark: '🌑 Necrotic Bite',
+  neutral: '🦎 Venom Strike',
+};
+
+const ELEMENTAL_ARCANE: Record<string, string> = {
+  fire: '🔥 Inferno Pulse', water: '💧 Tidal Logic', earth: '🌿 Gaia Mind',
+  air: '💨 Aether Blast', light: '✨ Cosmic Ray', dark: '🌑 Void Warp',
+  neutral: '🖖 Arcane Blast',
 };
 
 // --- Core Logic ---
 
 /**
- * Determine RPS outcome.
- * strike > wind > shield > strike
+ * Determine RPSSL outcome using the WINS_AGAINST table.
+ * Each choice beats exactly 2 others and loses to 2 others.
  */
 export function resolveRPS(p1: RPSChoice, p2: RPSChoice): 'p1win' | 'p2win' | 'draw' {
   if (p1 === p2) return 'draw';
-  if (
-    (p1 === 'strike' && p2 === 'wind') ||
-    (p1 === 'wind' && p2 === 'shield') ||
-    (p1 === 'shield' && p2 === 'strike')
-  ) {
-    return 'p1win';
-  }
+  if (WINS_AGAINST[p1].includes(p2)) return 'p1win';
   return 'p2win';
+}
+
+/**
+ * Get the win verb for a matchup (e.g., "crushes", "vaporizes").
+ */
+export function getWinVerb(winner: RPSChoice, loser: RPSChoice): string {
+  return WIN_VERBS[`${winner}>${loser}`] || 'beats';
 }
 
 /**
@@ -232,8 +290,10 @@ export function executeRPSRound(
 export function getFlavorName(choice: RPSChoice, elementalType: ElementalType): string {
   switch (choice) {
     case 'strike': return ELEMENTAL_STRIKE[elementalType] || ELEMENTAL_STRIKE.neutral;
-    case 'wind': return ELEMENTAL_WIND[elementalType] || ELEMENTAL_WIND.neutral;
-    case 'shield': return ELEMENTAL_SHIELD[elementalType] || ELEMENTAL_SHIELD.neutral;
+    case 'guard': return ELEMENTAL_GUARD[elementalType] || ELEMENTAL_GUARD.neutral;
+    case 'slash': return ELEMENTAL_SLASH[elementalType] || ELEMENTAL_SLASH.neutral;
+    case 'venom': return ELEMENTAL_VENOM[elementalType] || ELEMENTAL_VENOM.neutral;
+    case 'arcane': return ELEMENTAL_ARCANE[elementalType] || ELEMENTAL_ARCANE.neutral;
   }
 }
 
@@ -245,36 +305,42 @@ export function getChoiceDisplay(choice: RPSChoice): { emoji: string; name: stri
 }
 
 /**
- * CPU picks a random RPS choice (with slight bias based on difficulty).
+ * CPU picks a random RPSSL choice (with slight bias based on difficulty).
  */
 export function cpuPickRPS(
   difficulty: 'easy' | 'normal' | 'hard',
   round: number,
   seed: string
 ): RPSChoice {
-  const choices: RPSChoice[] = ['strike', 'wind', 'shield'];
+  const choices: RPSChoice[] = ['strike', 'guard', 'slash', 'venom', 'arcane'];
   const hash = simpleHash(seed + `_cpu_${round}`);
 
   if (difficulty === 'easy') {
-    // Easy: slightly biased toward shield (defensive, easier to beat)
-    const weights = [30, 30, 40]; // strike, wind, shield
+    // Easy: biased toward guard (defensive, easier to beat with slash/venom)
+    const weights = [15, 30, 15, 20, 20]; // strike, guard, slash, venom, arcane
     const roll = hash % 100;
-    if (roll < weights[0]) return 'strike';
-    if (roll < weights[0] + weights[1]) return 'wind';
-    return 'shield';
+    let cumulative = 0;
+    for (let i = 0; i < choices.length; i++) {
+      cumulative += weights[i];
+      if (roll < cumulative) return choices[i];
+    }
+    return 'guard';
   }
 
   if (difficulty === 'hard') {
-    // Hard: slightly biased toward strike (aggressive)
-    const weights = [40, 35, 25];
+    // Hard: biased toward strike and arcane (aggressive)
+    const weights = [25, 15, 20, 15, 25];
     const roll = hash % 100;
-    if (roll < weights[0]) return 'strike';
-    if (roll < weights[0] + weights[1]) return 'wind';
-    return 'shield';
+    let cumulative = 0;
+    for (let i = 0; i < choices.length; i++) {
+      cumulative += weights[i];
+      if (roll < cumulative) return choices[i];
+    }
+    return 'strike';
   }
 
-  // Normal: uniform random
-  return choices[hash % 3];
+  // Normal: uniform random across 5 choices
+  return choices[hash % 5];
 }
 
 /**

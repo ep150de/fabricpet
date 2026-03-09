@@ -5,11 +5,11 @@
 // Nostr relay URLs (public, free relays)
 export const DEFAULT_RELAYS = [
   'wss://relay.nostr.band',   // Best for indexing/discovery (supports all tag queries)
-  'wss://relay.damus.io',
-  'wss://nos.lol',
-  'wss://relay.snort.social',
-  'wss://purplepag.es',       // Good NIP-78 indexing relay
+  'wss://nos.lol',            // Reliable, good uptime
   'wss://relay.primal.net',   // Primal relay — good uptime
+  'wss://purplepag.es',       // Good NIP-78 indexing relay
+  'wss://relay.snort.social',
+  'wss://relay.damus.io',     // Sometimes unreliable — keep as fallback
 ];
 
 // NIP-78 event kind for app-specific data

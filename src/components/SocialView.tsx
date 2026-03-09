@@ -8,6 +8,7 @@ import { getStageEmoji } from '../engine/PetStateMachine';
 import { fetchLeaderboard, type LeaderboardEntry } from '../nostr/leaderboard';
 import { loadPetByPubkey, signGuestbook, npubToHex, type VisitedPet } from '../nostr/petVisitor';
 import { generateQRDataUrlAsync, parseQRCode, startQRScanner, isQRScanSupported } from '../social/QRCodeManager';
+import { savePetState } from '../nostr/petStorage';
 
 type SocialTab = 'leaderboard' | 'visit' | 'qr';
 
@@ -81,11 +82,36 @@ export function SocialView() {
 // ============================================
 
 function LeaderboardTab() {
-  const { identity } = useStore();
+  const { identity, pet } = useStore();
   const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loadTime, setLoadTime] = useState(0);
+  const [saving, setSaving] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<string | null>(null);
+
+  // Force save pet to Nostr, then reload leaderboard
+  const handleForceSave = useCallback(async () => {
+    if (!identity || !pet) return;
+    setSaving(true);
+    setSaveStatus('💾 Saving to Nostr relays...');
+    try {
+      const ok = await savePetState(identity, pet);
+      if (ok) {
+        setSaveStatus('✅ Saved! Refreshing leaderboard...');
+        // Wait a moment for relays to index, then reload
+        await new Promise(r => setTimeout(r, 2000));
+        await loadLeaderboard();
+        setSaveStatus('✅ Done! You should appear on the leaderboard now.');
+      } else {
+        setSaveStatus('❌ Save failed — check console for relay details');
+      }
+    } catch (e) {
+      setSaveStatus('❌ Save error — check your connection');
+    }
+    setSaving(false);
+    setTimeout(() => setSaveStatus(null), 5000);
+  }, [identity, pet]);
 
   const loadLeaderboard = useCallback(async () => {
     setLoading(true);
@@ -199,6 +225,30 @@ function LeaderboardTab() {
           );
         })}
       </div>
+
+      {/* Force Save & Publish to Leaderboard */}
+      {identity && pet && (
+        <div className="mt-4 bg-[#1a1a2e] rounded-xl p-4 border border-gray-800">
+          <h3 className="text-sm font-semibold text-gray-300 mb-2">📡 Publish Your Pet</h3>
+          <p className="text-xs text-gray-500 mb-3">
+            Save your pet to Nostr relays so others can see you on the leaderboard.
+          </p>
+          <button
+            onClick={handleForceSave}
+            disabled={saving}
+            className={`w-full font-semibold py-3 rounded-xl transition-all text-sm ${
+              saving
+                ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30'
+                : 'bg-gradient-to-r from-indigo-500 to-purple-500 text-white hover:from-indigo-600 hover:to-purple-600'
+            }`}
+          >
+            {saving ? '📡 Saving...' : '💾 Force Save & Refresh Leaderboard'}
+          </button>
+          {saveStatus && (
+            <p className="text-xs text-center mt-2 text-gray-400">{saveStatus}</p>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -282,9 +332,18 @@ function VisitTab() {
     if (!identity || !visitedPet || !guestbookMsg.trim()) return;
     setSigning(true);
     try {
-      const ok = await signGuestbook(identity, visitedPet.pubkey, guestbookMsg.trim());
+      const msg = guestbookMsg.trim();
+      const ok = await signGuestbook(identity, visitedPet.pubkey, msg);
       if (ok) {
         setSigned(true);
+        // Append new entry locally so it shows immediately without re-fetching
+        setVisitedPet({
+          ...visitedPet,
+          guestbook: [
+            { visitor: identity.pubkey, message: msg, timestamp: Date.now() },
+            ...visitedPet.guestbook,
+          ],
+        });
         setGuestbookMsg('');
       }
     } catch { /* ignore */ }

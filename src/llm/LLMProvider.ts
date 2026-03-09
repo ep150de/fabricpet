@@ -1,11 +1,42 @@
 // ============================================
-// LLM Provider — Ollama + vLLM + OpenAI-compatible endpoints
+// LLM Provider — Ollama + vLLM + OpenAI-compatible + OpenRouter
 // ============================================
-// Abstraction layer for local LLM inference.
+// Abstraction layer for LLM inference (local or cloud).
 // Supports streaming responses for real-time chat.
+// Includes free public fallback via OpenRouter.
 // ============================================
 
 export type LLMProviderType = 'ollama' | 'vllm' | 'openai-compatible';
+
+/**
+ * Preset LLM configurations for quick setup.
+ */
+export const LLM_PRESETS: Record<string, { provider: LLMProviderType; endpoint: string; model: string; label: string }> = {
+  ollama_local: {
+    provider: 'ollama',
+    endpoint: 'http://localhost:11434',
+    model: 'llama3.2',
+    label: '🏠 Ollama (Local)',
+  },
+  openrouter_free: {
+    provider: 'openai-compatible',
+    endpoint: 'https://openrouter.ai/api',
+    model: 'meta-llama/llama-3.2-3b-instruct:free',
+    label: '🌐 OpenRouter (Free)',
+  },
+  openrouter_good: {
+    provider: 'openai-compatible',
+    endpoint: 'https://openrouter.ai/api',
+    model: 'meta-llama/llama-3.1-8b-instruct:free',
+    label: '🌐 OpenRouter 8B (Free)',
+  },
+  vllm_local: {
+    provider: 'vllm',
+    endpoint: 'http://localhost:8000',
+    model: 'default',
+    label: '⚡ vLLM (Local)',
+  },
+};
 
 export interface LLMConfig {
   provider: LLMProviderType;

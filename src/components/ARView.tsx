@@ -49,7 +49,7 @@ export function ARView() {
     }
   }, []);
 
-  // Camera passthrough mode (works on all devices with camera)
+  // Camera passthrough — uses same simple pattern as QR scanner (proven to work)
   const startCamera = useCallback(async () => {
     try {
       setCameraReady(false);
@@ -62,86 +62,28 @@ export function ARView() {
         streamRef.current = null;
       }
 
+      // Simple getUserMedia → srcObject → play() — same as QR scanner
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode, width: { ideal: 1280 }, height: { ideal: 720 } },
       });
+
+      streamRef.current = stream;
 
       // Show camera info
       const track = stream.getVideoTracks()[0];
       if (track) {
         const settings = track.getSettings();
         setCameraInfo(`${settings.width}×${settings.height} • ${track.label}`);
-        console.log('[AR] Got video track:', track.label, settings.width, 'x', settings.height);
       }
-
-      streamRef.current = stream;
 
       if (videoRef.current) {
-        const video = videoRef.current;
-        video.srcObject = stream;
-
-        // Robust video ready detection — handles race conditions
-        const waitForVideo = (): Promise<void> => {
-          return new Promise<void>((resolve, reject) => {
-            let resolved = false;
-            const done = () => {
-              if (resolved) return;
-              resolved = true;
-              console.log('[AR] Video ready, readyState:', video.readyState, 'paused:', video.paused);
-              setCameraReady(true);
-              resolve();
-            };
-
-            // If video already has enough data, play immediately
-            if (video.readyState >= 2) {
-              console.log('[AR] Video already has data, playing immediately');
-              video.play().then(done).catch(reject);
-              return;
-            }
-
-            // Listen for multiple events — whichever fires first
-            const onCanPlay = () => {
-              cleanup();
-              video.play().then(done).catch(reject);
-            };
-            const onLoadedData = () => {
-              cleanup();
-              video.play().then(done).catch(reject);
-            };
-            const onError = (e: Event) => {
-              cleanup();
-              reject(new Error(`Video error: ${(e as ErrorEvent).message || 'unknown'}`));
-            };
-
-            const cleanup = () => {
-              video.removeEventListener('canplay', onCanPlay);
-              video.removeEventListener('loadeddata', onLoadedData);
-              video.removeEventListener('error', onError);
-            };
-
-            video.addEventListener('canplay', onCanPlay, { once: true });
-            video.addEventListener('loadeddata', onLoadedData, { once: true });
-            video.addEventListener('error', onError, { once: true });
-
-            // Timeout fallback — force play after 3 seconds
-            setTimeout(() => {
-              if (resolved) return;
-              console.log('[AR] Timeout fallback — forcing play, readyState:', video.readyState);
-              cleanup();
-              video.play()
-                .then(done)
-                .catch(() => {
-                  // Even if play fails, mark as ready so user sees something
-                  console.warn('[AR] Play failed on timeout, marking ready anyway');
-                  done();
-                });
-            }, 3000);
-          });
-        };
-
-        await waitForVideo();
+        videoRef.current.srcObject = stream;
+        await videoRef.current.play();
+        console.log('[AR] Camera playing successfully');
       }
 
+      // Both flags set AFTER play() succeeds — this triggers the 3D overlay
+      setCameraReady(true);
       setCameraActive(true);
     } catch (e: any) {
       const msg = e?.name === 'NotAllowedError'
@@ -150,9 +92,11 @@ export function ARView() {
         ? 'No camera found on this device.'
         : e?.name === 'NotReadableError'
         ? 'Camera is in use by another app. Close other camera apps and try again.'
+        : e?.name === 'AbortError'
+        ? 'Camera was interrupted. Please try again.'
         : `Camera error: ${e?.message || 'Unknown error'}`;
       setError(msg);
-      console.error('[AR] Camera error:', e?.name, e?.message, e);
+      console.error('[AR] Camera error:', e?.name, e?.message);
     }
   }, [facingMode]);
 

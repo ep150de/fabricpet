@@ -18,6 +18,7 @@ import {
   saveLLMConfig,
   fetchAvailableModels,
   checkLLMHealth,
+  LLM_PRESETS,
 } from '../llm/LLMProvider';
 import type { LLMProviderType } from '../llm/LLMProvider';
 
@@ -184,6 +185,31 @@ export function ChatView() {
       {showSettings && (
         <div className="bg-[#12122a] border-b border-gray-800 p-3 space-y-2 shrink-0">
           <h3 className="text-xs font-semibold text-gray-300">🤖 LLM Settings</h3>
+
+          {/* Quick Presets */}
+          <div>
+            <label className="text-xs text-gray-500 mb-1 block">⚡ Quick Setup</label>
+            <div className="grid grid-cols-2 gap-1">
+              {Object.entries(LLM_PRESETS).map(([key, preset]) => (
+                <button
+                  key={key}
+                  onClick={() => {
+                    setProvider(preset.provider);
+                    setEndpoint(preset.endpoint);
+                    setModel(preset.model);
+                  }}
+                  className={`text-xs px-2 py-1.5 rounded border transition-all text-left ${
+                    endpoint === preset.endpoint && model === preset.model
+                      ? 'bg-indigo-500/20 text-indigo-300 border-indigo-500/50'
+                      : 'bg-[#0f0f23] text-gray-400 border-gray-700 hover:border-gray-600'
+                  }`}
+                >
+                  {preset.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
           <div className="grid grid-cols-2 gap-2">
             <div>
               <label className="text-xs text-gray-500">Provider</label>
