@@ -11,6 +11,8 @@ interface AppState {
   // --- View ---
   currentView: AppView;
   setView: (view: AppView) => void;
+  deepLinkParams: Record<string, string>;
+  setDeepLinkParams: (params: Record<string, string>) => void;
 
   // --- Identity ---
   identity: NostrIdentity | null;
@@ -58,6 +60,8 @@ export const useStore = create<AppState>((set) => ({
   // --- View ---
   currentView: 'home',
   setView: (view) => set({ currentView: view }),
+  deepLinkParams: {},
+  setDeepLinkParams: (params) => set({ deepLinkParams: params }),
 
   // --- Identity ---
   identity: null,

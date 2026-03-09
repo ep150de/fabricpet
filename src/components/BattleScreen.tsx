@@ -136,25 +136,42 @@ function ArenaModePanel({ pet, startPracticeBattle }: { pet: Pet; startPracticeB
   );
 }
 
+// Difficulty settings for CPU battles
+type Difficulty = 'easy' | 'normal' | 'hard';
+const DIFFICULTY_MULTIPLIER: Record<Difficulty, number> = {
+  easy: 0.6,
+  normal: 0.85,
+  hard: 1.15,
+};
+
 // Generate a random opponent for practice battles
-function generateOpponent(playerLevel: number) {
-  const names = ['Sparky', 'Biscuit', 'Luna', 'Mochi', 'Pixel', 'Nimbus', 'Ember', 'Frost'];
+// Stats are now based on the player's ACTUAL stats (not a separate formula)
+// so the battle is fair at every stage (egg, baby, teen, adult, elder)
+function generateOpponent(playerLevel: number, playerStats: import('../types').BattleStats, difficulty: Difficulty = 'normal') {
+  const names = ['Sparky', 'Biscuit', 'Luna', 'Mochi', 'Pixel', 'Nimbus', 'Ember', 'Frost', 'Coco', 'Ziggy'];
   const types = ['fire', 'water', 'earth', 'air', 'light', 'dark', 'neutral'] as const;
   const name = names[Math.floor(Math.random() * names.length)];
-  const level = Math.max(1, playerLevel + Math.floor(Math.random() * 5) - 2);
   const type = types[Math.floor(Math.random() * types.length)];
-  const baseHp = 20 + level * 3;
+  const mult = DIFFICULTY_MULTIPLIER[difficulty];
+
+  // Level varies slightly around player level
+  const levelOffset = difficulty === 'easy' ? -1 : difficulty === 'hard' ? 1 : 0;
+  const level = Math.max(1, playerLevel + levelOffset + Math.floor(Math.random() * 3) - 1);
+
+  // Scale opponent stats from player's actual stats (fair at every stage)
+  const variance = () => 0.9 + Math.random() * 0.2; // 90-110% variance
+  const hp = Math.max(5, Math.round(playerStats.maxHp * mult * variance()));
 
   return {
     name,
     level,
     stats: {
-      hp: baseHp,
-      maxHp: baseHp,
-      atk: 5 + level * 2,
-      def: 4 + level * 1.5,
-      spd: 5 + level * 1.5,
-      special: 5 + level * 1.5,
+      hp,
+      maxHp: hp,
+      atk: Math.max(1, Math.round(playerStats.atk * mult * variance())),
+      def: Math.max(1, Math.round(playerStats.def * mult * variance())),
+      spd: Math.max(1, Math.round(playerStats.spd * mult * variance())),
+      special: Math.max(1, Math.round(playerStats.special * mult * variance())),
     },
     moves: ['tackle', 'spark', 'shield', 'rest'],
     elementalType: type,
@@ -172,6 +189,8 @@ export function BattleScreen() {
   const [incomingChallenges, setIncomingChallenges] = useState<BattleChallenge[]>([]);
   const [isPublishing, setIsPublishing] = useState(false);
   const [challengePublished, setChallengePublished] = useState(false);
+  const [difficulty, setDifficulty] = useState<Difficulty>('normal');
+  const [battleResult, setBattleResult] = useState<'won' | 'lost' | null>(null);
 
   // Subscribe to incoming Nostr challenges
   useEffect(() => {
@@ -214,7 +233,8 @@ export function BattleScreen() {
   if (!pet) return null;
 
   const startPracticeBattle = () => {
-    const opponent = generateOpponent(pet.level);
+    setBattleResult(null);
+    const opponent = generateOpponent(pet.level, pet.battleStats, difficulty);
     const battle = createBattle(
       'player',
       'cpu',
@@ -259,7 +279,9 @@ export function BattleScreen() {
 
     // Check for battle end
     if (result.status === 'finished') {
-      const won = result.winner === 'player';
+      // Use players[0] (the local player) — works for both CPU and P2P battles
+      const won = result.winner === result.players[0];
+      setBattleResult(won ? 'won' : 'lost');
       const xp = calculateBattleXP(won, pet.level);
       const { pet: updatedPet, leveledUp, evolved } = addXP(pet, xp);
 
@@ -362,13 +384,35 @@ export function BattleScreen() {
           </div>
         </div>
 
+        {/* Difficulty Selector */}
+        <div className="bg-[#1a1a2e] rounded-xl p-3 mb-3 border border-gray-800">
+          <div className="text-xs text-gray-400 mb-2 text-center">Difficulty</div>
+          <div className="flex gap-2">
+            {(['easy', 'normal', 'hard'] as Difficulty[]).map((d) => (
+              <button
+                key={d}
+                onClick={() => setDifficulty(d)}
+                className={`flex-1 py-2 rounded-lg text-xs font-semibold transition-all capitalize ${
+                  difficulty === d
+                    ? d === 'easy' ? 'bg-green-500/20 text-green-400 border border-green-500/50'
+                      : d === 'normal' ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/50'
+                      : 'bg-red-500/20 text-red-400 border border-red-500/50'
+                    : 'bg-[#0f0f23] text-gray-500 border border-gray-800'
+                }`}
+              >
+                {d === 'easy' ? '🟢 Easy' : d === 'normal' ? '🟡 Normal' : '🔴 Hard'}
+              </button>
+            ))}
+          </div>
+        </div>
+
         {/* Battle Options */}
         <div className="space-y-3">
           <button
             onClick={startPracticeBattle}
             className="w-full bg-gradient-to-r from-indigo-500 to-purple-500 text-white font-semibold py-4 rounded-xl hover:from-indigo-600 hover:to-purple-600 transition-all active:scale-98"
           >
-            🤖 Practice Battle (vs CPU)
+            🤖 Practice Battle (vs CPU) — {difficulty === 'easy' ? '🟢 Easy' : difficulty === 'normal' ? '🟡 Normal' : '🔴 Hard'}
           </button>
 
           {identity ? (
@@ -480,6 +524,27 @@ export function BattleScreen() {
           {activeBattle.status === 'finished' && ' — Battle Over!'}
         </h2>
       </div>
+
+      {/* Victory / Defeat Banner */}
+      {battleResult && (
+        <div className={`rounded-2xl p-6 mb-4 text-center border-2 ${
+          battleResult === 'won'
+            ? 'bg-gradient-to-r from-green-900/50 to-emerald-900/50 border-green-500/50'
+            : 'bg-gradient-to-r from-red-900/50 to-rose-900/50 border-red-500/50'
+        }`}>
+          <div className="text-5xl mb-2">{battleResult === 'won' ? '🏆' : '💀'}</div>
+          <div className={`text-3xl font-black tracking-wider ${
+            battleResult === 'won' ? 'text-green-400' : 'text-red-400'
+          }`}>
+            {battleResult === 'won' ? 'VICTORY!' : 'DEFEAT'}
+          </div>
+          <div className="text-sm text-gray-400 mt-2">
+            {battleResult === 'won'
+              ? `${pet.name} wins! Great battle! 🎉`
+              : `${pet.name} was defeated. Train harder! 💪`}
+          </div>
+        </div>
+      )}
 
       {/* Battle Field */}
       <div className="bg-[#1a1a2e] rounded-2xl p-4 mb-4 border border-gray-800">

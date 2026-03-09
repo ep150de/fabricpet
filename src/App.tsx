@@ -119,6 +119,10 @@ export default function App() {
     const deepLink = parseDeepLink();
     if (deepLink) {
       console.log('[DeepLink] Processing:', deepLink);
+      // Store params BEFORE navigating so components can read them
+      if (Object.keys(deepLink.params).length > 0) {
+        useStore.getState().setDeepLinkParams(deepLink.params);
+      }
       setView(deepLink.view);
       clearDeepLinkParams();
     }

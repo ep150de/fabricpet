@@ -2,7 +2,7 @@
 // Pet Visitor — Load and visit other players' pets via Nostr
 // ============================================
 
-import { DEFAULT_RELAYS } from '../utils/constants';
+import { DEFAULT_RELAYS, NOSTR_D_TAGS } from '../utils/constants';
 import type { Pet, GuestbookEntry } from '../types';
 import type { NostrIdentity } from './identity';
 
@@ -15,65 +15,62 @@ export interface VisitedPet {
 
 /**
  * Load another player's pet state from Nostr by pubkey.
+ * Uses SimplePool for reliable multi-relay querying.
+ * Queries BOTH the correct d-tag AND legacy d-tag for backward compatibility.
  */
 export async function loadPetByPubkey(pubkey: string): Promise<VisitedPet | null> {
-  const { Relay } = await import('nostr-tools/relay');
+  const { SimplePool } = await import('nostr-tools/pool');
+  const pool = new SimplePool();
 
-  for (const relayUrl of DEFAULT_RELAYS) {
-    try {
-      const relay = await Relay.connect(relayUrl);
+  try {
+    // Query all relays in parallel using SimplePool
+    // Try BOTH the correct d-tag and the legacy one for backward compat
+    const event = await Promise.race([
+      pool.get(DEFAULT_RELAYS, {
+        kinds: [30078],
+        authors: [pubkey],
+        '#d': [NOSTR_D_TAGS.PET_STATE],
+      }),
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), 10000)),
+    ]);
 
-      const result = await new Promise<VisitedPet | null>((resolve) => {
-        let found: VisitedPet | null = null;
-
-        const sub = relay.subscribe(
-          [
-            {
-              kinds: [30078],
-              authors: [pubkey],
-              '#d': ['fabricpet-state'],
-              limit: 1,
-            },
-          ],
-          {
-            onevent(event) {
-              try {
-                const data = JSON.parse(event.content);
-                if (data.pet) {
-                  found = {
-                    pubkey: event.pubkey,
-                    pet: data.pet,
-                    guestbook: [],
-                    lastUpdated: event.created_at * 1000,
-                  };
-                }
-              } catch { /* skip */ }
-            },
-            oneose() {
-              sub.close();
-              relay.close();
-              resolve(found);
-            },
-          }
-        );
-
-        setTimeout(() => {
-          try { sub.close(); relay.close(); } catch {}
-          resolve(found);
-        }, 5000);
-      });
-
-      if (result) {
-        // Also try to load guestbook
-        const guestbook = await loadGuestbook(pubkey);
-        return { ...result, guestbook };
-      }
-    } catch (e) {
-      console.warn(`[PetVisitor] Failed on ${relayUrl}:`, e);
+    // If not found with correct tag, try legacy tag
+    let foundEvent = event;
+    if (!foundEvent) {
+      console.log('[PetVisitor] Trying legacy d-tag...');
+      foundEvent = await Promise.race([
+        pool.get(DEFAULT_RELAYS, {
+          kinds: [30078],
+          authors: [pubkey],
+          '#d': ['fabricpet-state'],
+        }),
+        new Promise<null>((resolve) => setTimeout(() => resolve(null), 8000)),
+      ]);
     }
-  }
 
-  return null;
+    if (foundEvent) {
+      try {
+        const data = JSON.parse(foundEvent.content);
+        if (data.pet) {
+          const guestbook = await loadGuestbook(pubkey);
+          return {
+            pubkey: foundEvent.pubkey,
+            pet: data.pet,
+            guestbook,
+            lastUpdated: foundEvent.created_at * 1000,
+          };
+        }
+      } catch { /* skip malformed */ }
+    }
+
+    console.log(`[PetVisitor] No pet found for ${pubkey.slice(0, 12)}...`);
+    return null;
+  } catch (e) {
+    console.error('[PetVisitor] Failed to load pet:', e);
+    return null;
+  } finally {
+    pool.close(DEFAULT_RELAYS);
+  }
 }
 
 /**

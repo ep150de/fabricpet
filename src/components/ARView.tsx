@@ -19,6 +19,26 @@ export function ARView() {
   const containerRef = useRef<HTMLDivElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const [cameraReady, setCameraReady] = useState(false);
+  const [cameraSupported, setCameraSupported] = useState(true);
+  const [facingMode, setFacingMode] = useState<'environment' | 'user'>('environment');
+  const [cameraInfo, setCameraInfo] = useState<string>('');
+
+  // Pre-flight camera support check
+  useEffect(() => {
+    // Check secure context (HTTPS required for camera)
+    if (typeof window !== 'undefined' && !window.isSecureContext) {
+      setCameraSupported(false);
+      setError('Camera requires HTTPS. Please access this site via https://');
+      return;
+    }
+    // Check mediaDevices API
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      setCameraSupported(false);
+      setError('Camera API not available on this browser/device.');
+      return;
+    }
+    setCameraSupported(true);
+  }, []);
 
   // Check WebXR support
   useEffect(() => {
@@ -33,9 +53,19 @@ export function ARView() {
   const startCamera = useCallback(async () => {
     try {
       setCameraReady(false);
+      // Stop any existing stream first
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(t => t.stop());
+      }
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } },
+        video: { facingMode, width: { ideal: 1280 }, height: { ideal: 720 } },
       });
+      // Show camera info
+      const track = stream.getVideoTracks()[0];
+      if (track) {
+        const settings = track.getSettings();
+        setCameraInfo(`${settings.width}×${settings.height} • ${track.label}`);
+      }
       streamRef.current = stream;
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
@@ -179,11 +209,32 @@ export function ARView() {
     };
     animate();
 
+    // Collect all disposables for cleanup
+    const geometries = [petGeo, eyeGeo, highlightGeo, shadowGeo];
+    const materials = [petMat, eyeMat, highlightMat, shadowMat];
+
     return () => {
       cancelAnimationFrame(animId);
+      // Properly dispose Three.js resources to prevent memory leaks
+      geometries.forEach(g => g.dispose());
+      materials.forEach(m => m.dispose());
       renderer.dispose();
+      renderer.forceContextLoss();
     };
   }, [cameraActive, cameraReady, pet]);
+
+  // Switch camera (front/back)
+  const switchCamera = useCallback(async () => {
+    const newMode = facingMode === 'environment' ? 'user' : 'environment';
+    setFacingMode(newMode);
+    if (cameraActive) {
+      // Restart camera with new facing mode
+      stopCamera();
+      setTimeout(() => {
+        startCamera();
+      }, 300);
+    }
+  }, [facingMode, cameraActive, stopCamera, startCamera]);
 
   if (!pet) return null;
 
@@ -204,9 +255,14 @@ export function ARView() {
         <div className="space-y-3">
           <button
             onClick={startCamera}
-            className="w-full bg-gradient-to-r from-indigo-500 to-purple-500 text-white font-semibold py-4 rounded-xl hover:from-indigo-600 hover:to-purple-600 transition-all"
+            disabled={!cameraSupported}
+            className={`w-full font-semibold py-4 rounded-xl transition-all ${
+              cameraSupported
+                ? 'bg-gradient-to-r from-indigo-500 to-purple-500 text-white hover:from-indigo-600 hover:to-purple-600'
+                : 'bg-gray-800 text-gray-500 cursor-not-allowed'
+            }`}
           >
-            📸 Start Camera AR
+            {cameraSupported ? '📸 Start Camera AR' : '📸 Camera Not Available'}
           </button>
 
           {arSupported && (
@@ -264,6 +320,22 @@ export function ARView() {
               {getStageEmoji(pet.stage)} {pet.name}
             </span>
           </div>
+
+          {/* Camera info — z-index 2 */}
+          {cameraInfo && (
+            <div className="absolute top-3 right-3 bg-black/50 backdrop-blur-sm rounded-lg px-2 py-1" style={{ zIndex: 2 }}>
+              <span className="text-xs text-gray-400">{cameraInfo}</span>
+            </div>
+          )}
+
+          {/* Camera switch button — z-index 2 */}
+          <button
+            onClick={switchCamera}
+            className="absolute bottom-3 left-3 bg-black/50 backdrop-blur-sm hover:bg-black/70 text-white font-bold px-3 py-2 rounded-lg transition-all text-sm"
+            style={{ zIndex: 2 }}
+          >
+            🔄 {facingMode === 'environment' ? 'Front' : 'Back'}
+          </button>
 
           {/* Stop button — z-index 2 */}
           <button

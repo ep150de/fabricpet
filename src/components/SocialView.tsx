@@ -17,8 +17,16 @@ const ELEMENT_EMOJI: Record<string, string> = {
 };
 
 export function SocialView() {
-  const { identity, pet } = useStore();
+  const { identity, pet, deepLinkParams, setDeepLinkParams } = useStore();
   const [tab, setTab] = useState<SocialTab>('leaderboard');
+
+  // Handle deep link params (e.g., from QR scan or URL ?rp1_action=visit&pubkey=...)
+  useEffect(() => {
+    if (deepLinkParams.tab === 'visit' || deepLinkParams.pubkey) {
+      setTab('visit');
+      // Params will be consumed by VisitTab via store
+    }
+  }, [deepLinkParams]);
 
   return (
     <div className="p-4 max-w-lg mx-auto">
@@ -200,7 +208,7 @@ function LeaderboardTab() {
 // ============================================
 
 function VisitTab() {
-  const { identity, pet } = useStore();
+  const { identity, pet, deepLinkParams, setDeepLinkParams } = useStore();
   const [npubInput, setNpubInput] = useState('');
   const [visitedPet, setVisitedPet] = useState<VisitedPet | null>(null);
   const [loading, setLoading] = useState(false);
@@ -208,6 +216,31 @@ function VisitTab() {
   const [guestbookMsg, setGuestbookMsg] = useState('');
   const [signing, setSigning] = useState(false);
   const [signed, setSigned] = useState(false);
+
+  // Auto-visit if deep link params contain a pubkey (from QR scan or URL)
+  useEffect(() => {
+    if (deepLinkParams.pubkey && deepLinkParams.pubkey.length > 0) {
+      setNpubInput(deepLinkParams.pubkey);
+      // Clear params so we don't re-trigger
+      setDeepLinkParams({});
+      // Auto-trigger visit after a short delay to let state settle
+      setTimeout(() => {
+        const input = document.querySelector<HTMLInputElement>('[data-visit-input]');
+        if (input) input.value = deepLinkParams.pubkey;
+      }, 100);
+    }
+  }, [deepLinkParams.pubkey, setDeepLinkParams]);
+
+  const handleVisitRef = useRef<(() => void) | null>(null);
+
+  // Auto-visit when npubInput is set from deep link
+  useEffect(() => {
+    if (npubInput && npubInput.length >= 32 && !visitedPet && !loading) {
+      if (/^[0-9a-f]{64}$/i.test(npubInput) || npubInput.startsWith('npub1')) {
+        handleVisitRef.current?.();
+      }
+    }
+  }, [npubInput, visitedPet, loading]);
 
   const handleVisit = useCallback(async () => {
     if (!npubInput.trim()) return;
@@ -241,6 +274,9 @@ function VisitTab() {
     }
     setLoading(false);
   }, [npubInput, identity]);
+
+  // Keep ref in sync for auto-visit effect
+  useEffect(() => { handleVisitRef.current = handleVisit; }, [handleVisit]);
 
   const handleSignGuestbook = useCallback(async () => {
     if (!identity || !visitedPet || !guestbookMsg.trim()) return;
@@ -397,7 +433,7 @@ function VisitTab() {
 // ============================================
 
 function QRMeetTab() {
-  const { identity, pet, setView } = useStore();
+  const { identity, pet, setDeepLinkParams } = useStore();
   const [mode, setMode] = useState<'show' | 'scan'>('show');
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
   const [scanning, setScanning] = useState(false);
@@ -454,12 +490,9 @@ function QRMeetTab() {
 
   const handleVisitScanned = () => {
     if (scanResult) {
-      // Navigate to visit tab with the scanned pubkey
-      // We'll use the URL approach for simplicity
-      const url = new URL(window.location.href);
-      url.searchParams.set('rp1_action', 'visit');
-      url.searchParams.set('pubkey', scanResult);
-      window.location.href = url.toString();
+      // Navigate to visit tab via React state (NO page reload!)
+      // Set deep link params so VisitTab auto-fills and auto-visits
+      setDeepLinkParams({ tab: 'visit', pubkey: scanResult });
     }
   };
 
