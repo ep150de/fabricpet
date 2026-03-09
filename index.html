@@ -6,11 +6,21 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="description" content="FabricPet - A Tamagotchi-style virtual pet living in the RP1 spatial fabric metaverse, powered by Bitcoin Ordinals and Nostr" />
     <meta name="theme-color" content="#0f0f23" />
-    <link rel="manifest" href="/manifest.json" />
+    <link rel="manifest" href="manifest.json" />
     <title>FabricPet 🐾</title>
   </head>
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('sw.js').then(
+            (reg) => console.log('[SW] Registered:', reg.scope),
+            (err) => console.warn('[SW] Registration failed:', err)
+          );
+        });
+      }
+    </script>
   </body>
 </html>

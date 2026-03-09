@@ -189,24 +189,25 @@ src/
 - [x] NSO services (Arena, Matchmaking, Spectator, Tournament)
 - [x] Spatial registration and proximity detection
 
-### Phase 3B-D 🔜 — Multiplayer + Social
-- [ ] P2P battles via Nostr events (relay code ready)
-- [ ] Challenge lobby UI
-- [ ] Leaderboard (NIP-78 aggregation)
-- [ ] Pet visiting via Nostr pubkeys
-- [ ] Guestbook signing
+### Phase 3B-D ✅ — Multiplayer + Social
+- [x] P2P battles via Nostr events (relay code + UI)
+- [x] Challenge lobby with incoming challenge cards
+- [x] Leaderboard — queries Nostr relays, ranks by wins/win rate/level
+- [x] Pet visiting via npub or hex pubkey
+- [x] Guestbook signing (NIP-78 events)
 
-### Phase 4 🔜 — RP1 Spatial Integration
-- [ ] Live scene sync (auto-push on wallet change)
-- [ ] Spatial visitor detection via proximity
-- [ ] Spatial battle arenas in RP1
-- [ ] Deep link handling
+### Phase 4 ✅ — Live RP1 Scene Sync
+- [x] Auto-sync scene to RP1 when wallet inscriptions change
+- [x] Debounced SceneSync with change detection
+- [x] Force sync and reset capabilities
 
-### Phase 5 🔜 — AR + Polish
-- [ ] WebXR AR mode (camera passthrough)
-- [ ] VRM avatar animations
-- [ ] Sound effects and music
-- [ ] PWA offline support
+### Phase 5 ✅ — AR + PWA + Sound
+- [x] Camera AR mode — see your pet overlaid on real world
+- [x] 3D pet rendering with Three.js on camera feed
+- [x] WebXR immersive AR detection (ready for future)
+- [x] Procedural sound effects via Web Audio API (16 sound types)
+- [x] PWA manifest + service worker for offline support
+- [x] Installable as home screen app
 
 ## 🤝 Contributing
 

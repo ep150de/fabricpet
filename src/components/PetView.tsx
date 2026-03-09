@@ -27,7 +27,7 @@ const actions = [
 ] as const;
 
 export function PetView() {
-  const { pet, setPet, identity, setNotification, currentBehavior, setCurrentBehavior } = useStore();
+  const { pet, setPet, identity, setNotification, currentBehavior, setCurrentBehavior, setView } = useStore();
   const [reactionEmote, setReactionEmote] = useState<{ emoji: string; message: string } | null>(null);
   const [ordinalPreview, setOrdinalPreview] = useState<string | null>(null);
   const behaviorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -246,6 +246,14 @@ export function PetView() {
           </div>
         )}
       </div>
+
+      {/* AR Mode Button */}
+      <button
+        onClick={() => setView('ar')}
+        className="w-full bg-gradient-to-r from-pink-500 to-purple-500 text-white font-semibold py-3 rounded-xl hover:from-pink-600 hover:to-purple-600 transition-all active:scale-98"
+      >
+        📸 AR Mode — See {pet.name} in the Real World!
+      </button>
     </div>
   );
 }

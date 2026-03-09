@@ -1,16 +1,20 @@
 {
   "name": "FabricPet",
   "short_name": "FabricPet",
-  "description": "A Tamagotchi-style virtual pet living in the RP1 spatial fabric metaverse",
-  "start_url": "/",
+  "description": "Tamagotchi-style virtual pet in the RP1 spatial fabric metaverse, powered by Bitcoin Ordinals and Nostr",
+  "start_url": "/fabricpet/",
+  "scope": "/fabricpet/",
   "display": "standalone",
+  "orientation": "portrait",
   "background_color": "#0f0f23",
   "theme_color": "#6366f1",
+  "categories": ["games", "entertainment"],
   "icons": [
     {
-      "src": "/vite.svg",
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🐾</text></svg>",
       "sizes": "any",
-      "type": "image/svg+xml"
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
     }
   ]
 }

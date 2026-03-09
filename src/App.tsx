@@ -16,11 +16,13 @@ import { HomeView } from './components/HomeView';
 import { ChatView } from './components/ChatView';
 import { ArenaView } from './components/ArenaView';
 import { SocialView } from './components/SocialView';
+import { ARView } from './components/ARView';
 import { SetupScreen } from './components/SetupScreen';
+import { scheduleSceneSync } from './rp1/SceneSync';
 import { Notification } from './components/Notification';
 
 export default function App() {
-  const { identity, setIdentity, pet, setPet, currentView, isLoading, setLoading, notification } = useStore();
+  const { identity, setIdentity, pet, setPet, currentView, isLoading, setLoading, notification, wallet } = useStore();
 
   // Initialize identity and load pet state
   const initialize = useCallback(async () => {
@@ -115,6 +117,12 @@ export default function App() {
     return () => clearInterval(interval);
   }, [pet, setPet]);
 
+  // Auto-sync scene to RP1 when wallet inscriptions change
+  useEffect(() => {
+    if (!pet || !wallet.connected || wallet.inscriptions.length === 0) return;
+    scheduleSceneSync(pet, wallet.inscriptions);
+  }, [pet, wallet.connected, wallet.inscriptions]);
+
   // Auto-save to Nostr every 2 minutes (cross-device sync)
   useEffect(() => {
     if (!pet || !identity) return;
@@ -160,6 +168,7 @@ export default function App() {
         {currentView === 'battle' && <BattleScreen />}
         {currentView === 'arena' && <ArenaView height="calc(100vh - 8rem)" />}
         {currentView === 'social' && <SocialView />}
+        {currentView === 'ar' && <ARView />}
         {currentView === 'wallet' && <WalletView />}
       </main>
 
