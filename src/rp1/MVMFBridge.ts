@@ -205,11 +205,20 @@ export function getNSOServiceDefinition(): NSOPetService {
  * Push Scene Assembler JSON to the MSF service.
  * This updates the RP1 world scene with ordinal inscription references.
  * The RP1 browser loads 3D models directly from ordinals.com URLs.
+ *
+ * All fetch calls have an 8-second timeout to prevent hanging.
  */
 export async function pushSceneJSON(
   sceneJSON: unknown[],
   adminKey: string = 'P0rt3rT'
 ): Promise<boolean> {
+  // Pre-check: is MSF even reachable? (5s timeout)
+  const healthy = await checkMSFHealth();
+  if (!healthy) {
+    console.warn('[MVMF Bridge] MSF offline — skipping push, use clipboard fallback');
+    return false;
+  }
+
   try {
     // The Scene Assembler accepts JSON via its code editor endpoint
     const response = await fetch(`${RP1_CONFIG.msfServiceUrl}/api/scene/json`, {
@@ -224,6 +233,7 @@ export async function pushSceneJSON(
         sceneData: sceneJSON,
         timestamp: Date.now(),
       }),
+      signal: AbortSignal.timeout(8000),
     });
 
     if (response.ok) {
@@ -231,7 +241,7 @@ export async function pushSceneJSON(
       return true;
     }
 
-    // If the /api/scene/json endpoint doesn't exist, try the general update
+    // If the endpoint doesn't exist yet, try the general update (also with timeout)
     if (response.status === 404) {
       console.log('[MVMF Bridge] /api/scene/json not found, trying /api/scene/update');
       const fallback = await fetch(`${RP1_CONFIG.msfServiceUrl}/api/scene/update`, {
@@ -246,6 +256,7 @@ export async function pushSceneJSON(
           sceneData: sceneJSON,
           timestamp: Date.now(),
         }),
+        signal: AbortSignal.timeout(8000),
       });
       if (fallback.ok) {
         console.log('[MVMF Bridge] Scene JSON pushed via fallback endpoint');
@@ -256,7 +267,11 @@ export async function pushSceneJSON(
     console.warn('[MVMF Bridge] Scene push returned:', response.status);
     return false;
   } catch (error) {
-    console.warn('[MVMF Bridge] Failed to push scene JSON:', error);
+    if (error instanceof DOMException && error.name === 'TimeoutError') {
+      console.warn('[MVMF Bridge] Scene push timed out after 8s');
+    } else {
+      console.warn('[MVMF Bridge] Failed to push scene JSON:', error);
+    }
     return false;
   }
 }

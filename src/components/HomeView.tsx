@@ -368,15 +368,22 @@ export function HomeView() {
                 if (pushed) {
                   setPushResult('success');
                 } else {
-                  // Fallback: copy to clipboard for manual paste
+                  // MSF offline or failed — auto-copy to clipboard
                   const copied = await copySceneJSONToClipboard(sceneJSON);
                   setPushResult(copied ? 'copied' : 'error');
                 }
               } catch {
-                setPushResult('error');
+                // Timeout or network error — try clipboard
+                try {
+                  const sceneJSON = generateSceneJSON(pet, wallet.inscriptions);
+                  const copied = await copySceneJSONToClipboard(sceneJSON);
+                  setPushResult(copied ? 'copied' : 'error');
+                } catch {
+                  setPushResult('error');
+                }
               }
               setPushing(false);
-              setTimeout(() => setPushResult(null), 5000);
+              setTimeout(() => setPushResult(null), 8000);
             }}
             disabled={pushing}
             className={`w-full font-semibold py-3 rounded-xl transition-all text-sm ${
@@ -384,13 +391,15 @@ export function HomeView() {
                 ? 'bg-green-500/20 border border-green-500/50 text-green-300'
                 : pushResult === 'copied'
                 ? 'bg-amber-500/20 border border-amber-500/50 text-amber-300'
+                : pushResult === 'error'
+                ? 'bg-red-500/20 border border-red-500/50 text-red-300'
                 : 'bg-gradient-to-r from-orange-500 to-pink-500 text-white hover:from-orange-600 hover:to-pink-600'
             }`}
           >
-            {pushing ? '📡 Pushing to RP1...' :
+            {pushing ? '📡 Checking MSF & pushing... (max 13s)' :
              pushResult === 'success' ? '✅ Scene Updated in RP1!' :
-             pushResult === 'copied' ? '📋 Scene JSON Copied — Paste in Scene Assembler' :
-             pushResult === 'error' ? '❌ Push Failed — Try Scene Assembler' :
+             pushResult === 'copied' ? '📋 MSF offline — Scene JSON Copied! Paste in Scene Assembler' :
+             pushResult === 'error' ? '❌ Push Failed — Try copying manually' :
              `🌐 Push All Bitcoin Assets to RP1 (${wallet.inscriptions.length} items)`}
           </button>
           <div className="flex gap-2">
