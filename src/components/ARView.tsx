@@ -16,7 +16,9 @@ export function ARView() {
   const [error, setError] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const [cameraReady, setCameraReady] = useState(false);
 
   // Check WebXR support
   useEffect(() => {
@@ -30,13 +32,28 @@ export function ARView() {
   // Camera passthrough mode (works on all devices with camera)
   const startCamera = useCallback(async () => {
     try {
+      setCameraReady(false);
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } },
       });
       streamRef.current = stream;
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        await videoRef.current.play();
+        // Wait for video metadata to load before playing
+        await new Promise<void>((resolve, reject) => {
+          const video = videoRef.current!;
+          video.onloadedmetadata = () => {
+            video.play().then(() => {
+              setCameraReady(true);
+              resolve();
+            }).catch(reject);
+          };
+          // Timeout fallback
+          setTimeout(() => {
+            if (!video.paused) { setCameraReady(true); resolve(); }
+            else { video.play().then(() => { setCameraReady(true); resolve(); }).catch(reject); }
+          }, 2000);
+        });
       }
       setCameraActive(true);
       setError(null);
@@ -52,6 +69,7 @@ export function ARView() {
       streamRef.current = null;
     }
     setCameraActive(false);
+    setCameraReady(false);
   }, []);
 
   // Cleanup on unmount
@@ -202,34 +220,46 @@ export function ARView() {
           </div>
         </div>
       ) : (
-        <div className="relative rounded-2xl overflow-hidden border border-gray-800">
-          {/* Camera feed */}
+        <div ref={containerRef} className="relative rounded-2xl overflow-hidden border border-gray-800" style={{ height: '400px' }}>
+          {/* Camera feed — z-index 0 */}
           <video
             ref={videoRef}
-            className="w-full h-80 object-cover"
+            autoPlay
             playsInline
             muted
+            className="absolute inset-0 w-full h-full object-cover"
+            style={{ zIndex: 0 }}
           />
 
-          {/* 3D pet overlay */}
+          {/* Loading indicator while camera initializes */}
+          {!cameraReady && (
+            <div className="absolute inset-0 flex items-center justify-center bg-black/80" style={{ zIndex: 5 }}>
+              <div className="text-center">
+                <div className="text-4xl animate-bounce mb-2">📸</div>
+                <p className="text-gray-400 text-sm">Starting camera...</p>
+              </div>
+            </div>
+          )}
+
+          {/* 3D pet overlay — z-index 1, transparent background */}
           <canvas
             ref={canvasRef}
-            className="absolute inset-0 w-full h-80 pointer-events-none"
-            width={640}
-            height={480}
+            className="absolute inset-0 w-full h-full pointer-events-none"
+            style={{ zIndex: 1, background: 'transparent' }}
           />
 
-          {/* Pet info overlay */}
-          <div className="absolute top-3 left-3 bg-black/50 backdrop-blur-sm rounded-lg px-3 py-1">
+          {/* Pet info overlay — z-index 2 */}
+          <div className="absolute top-3 left-3 bg-black/50 backdrop-blur-sm rounded-lg px-3 py-1" style={{ zIndex: 2 }}>
             <span className="text-sm text-white font-semibold">
               {getStageEmoji(pet.stage)} {pet.name}
             </span>
           </div>
 
-          {/* Stop button */}
+          {/* Stop button — z-index 2 */}
           <button
             onClick={stopCamera}
             className="absolute bottom-3 right-3 bg-red-500/80 hover:bg-red-500 text-white font-bold px-4 py-2 rounded-lg transition-all text-sm"
+            style={{ zIndex: 2 }}
           >
             ✕ Stop AR
           </button>
