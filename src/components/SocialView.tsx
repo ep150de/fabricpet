@@ -2,13 +2,14 @@
 // Social View — Leaderboard + Pet Visiting + Guestbook
 // ============================================
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useStore } from '../store/useStore';
 import { getStageEmoji } from '../engine/PetStateMachine';
 import { fetchLeaderboard, type LeaderboardEntry } from '../nostr/leaderboard';
 import { loadPetByPubkey, signGuestbook, npubToHex, type VisitedPet } from '../nostr/petVisitor';
+import { generateVisitQRDataUrl, parseQRCode, startQRScanner, isQRScanSupported } from '../social/QRCodeManager';
 
-type SocialTab = 'leaderboard' | 'visit';
+type SocialTab = 'leaderboard' | 'visit' | 'qr';
 
 const ELEMENT_EMOJI: Record<string, string> = {
   fire: '🔥', water: '💧', earth: '🌿', air: '💨',
@@ -46,12 +47,23 @@ export function SocialView() {
               : 'bg-[#1a1a2e] text-gray-500 border border-gray-800'
           }`}
         >
-          👋 Visit Pet
+          👋 Visit
+        </button>
+        <button
+          onClick={() => setTab('qr')}
+          className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-all ${
+            tab === 'qr'
+              ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/50'
+              : 'bg-[#1a1a2e] text-gray-500 border border-gray-800'
+          }`}
+        >
+          🔲 QR Meet
         </button>
       </div>
 
       {tab === 'leaderboard' && <LeaderboardTab />}
       {tab === 'visit' && <VisitTab />}
+      {tab === 'qr' && <QRMeetTab />}
     </div>
   );
 }
@@ -356,6 +368,246 @@ function VisitTab() {
           <p className="text-gray-600 text-xs mt-1">You can find npubs on the leaderboard</p>
         </div>
       )}
+    </div>
+  );
+}
+
+// ============================================
+// QR Meet Tab — IRL Pet Visiting via QR Code
+// ============================================
+
+function QRMeetTab() {
+  const { identity, pet, setView } = useStore();
+  const [mode, setMode] = useState<'show' | 'scan'>('show');
+  const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
+  const [scanning, setScanning] = useState(false);
+  const [scanResult, setScanResult] = useState<string | null>(null);
+  const [scanError, setScanError] = useState<string | null>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const scannerRef = useRef<{ stop: () => void } | null>(null);
+
+  // Generate QR code when showing
+  useEffect(() => {
+    if (mode === 'show' && identity) {
+      const dataUrl = generateVisitQRDataUrl(identity.pubkey);
+      setQrDataUrl(dataUrl);
+    }
+  }, [mode, identity]);
+
+  // Cleanup scanner on unmount
+  useEffect(() => {
+    return () => {
+      if (scannerRef.current) {
+        scannerRef.current.stop();
+      }
+    };
+  }, []);
+
+  const handleStartScan = () => {
+    if (!videoRef.current) return;
+    setScanning(true);
+    setScanResult(null);
+    setScanError(null);
+
+    const scanner = startQRScanner(videoRef.current, (data) => {
+      // QR detected!
+      const parsed = parseQRCode(data);
+      if (parsed) {
+        setScanResult(parsed.pubkey);
+        scanner.stop();
+        setScanning(false);
+      }
+    });
+    scannerRef.current = scanner;
+  };
+
+  const handleStopScan = () => {
+    if (scannerRef.current) {
+      scannerRef.current.stop();
+      scannerRef.current = null;
+    }
+    setScanning(false);
+  };
+
+  const handleVisitScanned = () => {
+    if (scanResult) {
+      // Navigate to visit tab with the scanned pubkey
+      // We'll use the URL approach for simplicity
+      const url = new URL(window.location.href);
+      url.searchParams.set('rp1_action', 'visit');
+      url.searchParams.set('pubkey', scanResult);
+      window.location.href = url.toString();
+    }
+  };
+
+  if (!identity || !pet) {
+    return (
+      <div className="text-center py-8">
+        <div className="text-4xl mb-3">🔲</div>
+        <p className="text-gray-400 text-sm">Create a pet first to use QR Meet!</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Mode Switcher */}
+      <div className="flex gap-2">
+        <button
+          onClick={() => { setMode('show'); handleStopScan(); }}
+          className={`flex-1 py-3 rounded-xl text-sm font-semibold transition-all ${
+            mode === 'show'
+              ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/50'
+              : 'bg-[#1a1a2e] text-gray-500 border border-gray-800'
+          }`}
+        >
+          📱 Show My QR
+        </button>
+        <button
+          onClick={() => setMode('scan')}
+          className={`flex-1 py-3 rounded-xl text-sm font-semibold transition-all ${
+            mode === 'scan'
+              ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/50'
+              : 'bg-[#1a1a2e] text-gray-500 border border-gray-800'
+          }`}
+        >
+          📷 Scan Friend's QR
+        </button>
+      </div>
+
+      {/* Show QR Mode */}
+      {mode === 'show' && (
+        <div className="bg-[#1a1a2e] rounded-xl p-6 border border-gray-800 text-center">
+          <h3 className="text-sm font-semibold text-cyan-300 mb-3">📱 Your Pet Visit QR Code</h3>
+          <p className="text-xs text-gray-400 mb-4">
+            Show this to a friend so they can scan and visit your pet!
+          </p>
+
+          {/* QR Code Display */}
+          {qrDataUrl ? (
+            <div className="inline-block bg-white p-4 rounded-xl mb-4">
+              <img src={qrDataUrl} alt="QR Code" className="w-48 h-48" />
+            </div>
+          ) : (
+            <div className="w-48 h-48 mx-auto bg-[#0f0f23] rounded-xl flex items-center justify-center mb-4">
+              <span className="text-gray-600">Generating...</span>
+            </div>
+          )}
+
+          {/* Pet Info */}
+          <div className="flex items-center justify-center gap-3 mb-3">
+            <span className="text-3xl">{getStageEmoji(pet.stage)}</span>
+            <div className="text-left">
+              <div className="text-sm font-bold text-white">{pet.name}</div>
+              <div className="text-xs text-gray-400">Lv.{pet.level} • {pet.elementalType}</div>
+            </div>
+          </div>
+
+          {/* Pubkey */}
+          <div className="bg-[#0f0f23] rounded-lg p-2 text-xs text-gray-500 font-mono break-all">
+            {identity.pubkey.slice(0, 16)}...{identity.pubkey.slice(-16)}
+          </div>
+        </div>
+      )}
+
+      {/* Scan QR Mode */}
+      {mode === 'scan' && (
+        <div className="bg-[#1a1a2e] rounded-xl p-4 border border-gray-800">
+          <h3 className="text-sm font-semibold text-cyan-300 mb-3">📷 Scan Friend's QR Code</h3>
+
+          {!isQRScanSupported() && (
+            <div className="bg-yellow-900/20 border border-yellow-500/30 rounded-lg p-3 mb-3">
+              <p className="text-xs text-yellow-300">
+                ⚠️ QR scanning requires BarcodeDetector API (Chrome 83+, Edge 83+).
+                You can also manually enter a pubkey in the Visit tab.
+              </p>
+            </div>
+          )}
+
+          {/* Camera Viewport */}
+          <div className="relative rounded-xl overflow-hidden bg-black mb-3" style={{ height: '240px' }}>
+            <video
+              ref={videoRef}
+              className="w-full h-full object-cover"
+              playsInline
+              muted
+            />
+            {!scanning && !scanResult && (
+              <div className="absolute inset-0 flex items-center justify-center bg-black/60">
+                <span className="text-gray-400 text-sm">Camera preview</span>
+              </div>
+            )}
+            {scanning && (
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="w-48 h-48 border-2 border-cyan-400 rounded-xl animate-pulse" />
+              </div>
+            )}
+          </div>
+
+          {/* Scan Controls */}
+          {!scanResult ? (
+            <button
+              onClick={scanning ? handleStopScan : handleStartScan}
+              disabled={!isQRScanSupported()}
+              className={`w-full font-semibold py-3 rounded-xl transition-all ${
+                scanning
+                  ? 'bg-red-500/20 text-red-400 border border-red-500/50'
+                  : 'bg-gradient-to-r from-cyan-500 to-teal-500 text-white hover:from-cyan-600 hover:to-teal-600'
+              }`}
+            >
+              {scanning ? '⏹️ Stop Scanning' : '📷 Start Scanning'}
+            </button>
+          ) : (
+            <div className="space-y-3">
+              <div className="bg-green-900/20 border border-green-500/30 rounded-lg p-3 text-center">
+                <p className="text-sm text-green-300 font-semibold">✅ QR Code Detected!</p>
+                <p className="text-xs text-gray-400 mt-1 font-mono">
+                  {scanResult.slice(0, 16)}...{scanResult.slice(-8)}
+                </p>
+              </div>
+              <button
+                onClick={handleVisitScanned}
+                className="w-full bg-gradient-to-r from-indigo-500 to-purple-500 text-white font-semibold py-3 rounded-xl hover:from-indigo-600 hover:to-purple-600 transition-all"
+              >
+                👋 Visit This Pet
+              </button>
+              <button
+                onClick={() => { setScanResult(null); setMode('scan'); }}
+                className="w-full bg-[#1a1a2e] border border-gray-700 text-gray-400 font-semibold py-2 rounded-xl text-sm"
+              >
+                🔄 Scan Again
+              </button>
+            </div>
+          )}
+
+          {scanError && (
+            <p className="text-xs text-red-400 mt-2 text-center">{scanError}</p>
+          )}
+        </div>
+      )}
+
+      {/* How It Works */}
+      <div className="bg-[#1a1a2e] rounded-xl p-4 border border-gray-800">
+        <h3 className="text-sm font-semibold text-gray-300 mb-2">💡 How QR Meet Works</h3>
+        <div className="space-y-2 text-xs text-gray-500">
+          <div className="flex items-start gap-2">
+            <span className="text-cyan-400">1.</span>
+            <span>Person A taps "Show My QR" — their QR code appears</span>
+          </div>
+          <div className="flex items-start gap-2">
+            <span className="text-cyan-400">2.</span>
+            <span>Person B taps "Scan Friend's QR" — camera opens</span>
+          </div>
+          <div className="flex items-start gap-2">
+            <span className="text-cyan-400">3.</span>
+            <span>Person B scans → instantly visits Person A's pet</span>
+          </div>
+          <div className="flex items-start gap-2">
+            <span className="text-cyan-400">4.</span>
+            <span>Sign guestbook, check stats, or challenge to battle! ⚔️</span>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

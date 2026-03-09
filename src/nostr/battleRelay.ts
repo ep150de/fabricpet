@@ -41,6 +41,58 @@ export interface BattleResultEvent {
 }
 
 /**
+ * Sign a Nostr event — supports both secretKey signing and NIP-07 extension signing.
+ */
+async function signEvent(
+  identity: NostrIdentity,
+  eventTemplate: { kind: number; created_at: number; tags: string[][]; content: string }
+): Promise<any> {
+  // Method 1: Sign with secret key (auto-generated identities)
+  if (identity.secretKey) {
+    const { finalizeEvent } = await import('nostr-tools/pure');
+    return finalizeEvent(eventTemplate, identity.secretKey);
+  }
+
+  // Method 2: Sign with NIP-07 browser extension (nos2x, Alby, etc.)
+  if (typeof window !== 'undefined' && (window as any).nostr) {
+    const unsignedEvent = {
+      ...eventTemplate,
+      pubkey: identity.pubkey,
+    };
+    const signedEvent = await (window as any).nostr.signEvent(unsignedEvent);
+    return signedEvent;
+  }
+
+  throw new Error('No signing method available. Need secretKey or NIP-07 extension.');
+}
+
+/**
+ * Publish a signed event to Nostr relays with retry logic.
+ * Returns the number of relays that accepted the event.
+ */
+async function publishToRelays(signedEvent: any): Promise<number> {
+  const { Relay } = await import('nostr-tools/relay');
+  let successCount = 0;
+
+  for (const relayUrl of DEFAULT_RELAYS) {
+    try {
+      const relay = await Promise.race([
+        Relay.connect(relayUrl),
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timeout')), 5000)),
+      ]);
+      await relay.publish(signedEvent);
+      relay.close();
+      successCount++;
+      console.log(`[BattleRelay] ✅ Published to ${relayUrl}`);
+    } catch (e) {
+      console.warn(`[BattleRelay] ❌ Failed on ${relayUrl}:`, e);
+    }
+  }
+
+  return successCount;
+}
+
+/**
  * Publish a battle challenge to Nostr relays.
  */
 export async function publishChallenge(
@@ -52,9 +104,6 @@ export async function publishChallenge(
   moves: string[],
   targetPubkey?: string
 ): Promise<string> {
-  const { Relay } = await import('nostr-tools/relay');
-  const { finalizeEvent } = await import('nostr-tools/pure');
-
   const challengeId = `challenge-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
   const challenge: BattleChallenge = {
@@ -87,21 +136,14 @@ export async function publishChallenge(
     content: JSON.stringify(challenge),
   };
 
-  const privKeyBytes = identity.secretKey!;
-  const signedEvent = finalizeEvent(eventTemplate, privKeyBytes);
+  const signedEvent = await signEvent(identity, eventTemplate);
+  const published = await publishToRelays(signedEvent);
 
-  // Publish to relays
-  for (const relayUrl of DEFAULT_RELAYS) {
-    try {
-      const relay = await Relay.connect(relayUrl);
-      await relay.publish(signedEvent);
-      relay.close();
-    } catch (e) {
-      console.warn(`[BattleRelay] Failed to publish to ${relayUrl}:`, e);
-    }
+  if (published === 0) {
+    throw new Error('Failed to publish to any relay. Check your internet connection.');
   }
 
-  console.log('[BattleRelay] Challenge published:', challengeId);
+  console.log(`[BattleRelay] Challenge published to ${published}/${DEFAULT_RELAYS.length} relays:`, challengeId);
   return challengeId;
 }
 
@@ -118,7 +160,10 @@ export async function subscribeToChallenges(
 
   for (const relayUrl of DEFAULT_RELAYS.slice(0, 2)) {
     try {
-      const relay = await Relay.connect(relayUrl);
+      const relay = await Promise.race([
+        Relay.connect(relayUrl),
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timeout')), 5000)),
+      ]);
 
       const sub = relay.subscribe(
         [
@@ -132,7 +177,6 @@ export async function subscribeToChallenges(
           onevent(event) {
             try {
               const challenge = JSON.parse(event.content) as BattleChallenge;
-              // Accept if targeted at us or open challenge (not from ourselves)
               if (
                 (challenge.targetPubkey === pubkey || challenge.targetPubkey === null) &&
                 challenge.challengerPubkey !== pubkey &&
@@ -174,9 +218,6 @@ export async function acceptChallenge(
   stats: BattleStats,
   moves: string[]
 ): Promise<string> {
-  const { Relay } = await import('nostr-tools/relay');
-  const { finalizeEvent } = await import('nostr-tools/pure');
-
   const battleId = `battle-${challengeId}-${Date.now()}`;
 
   const acceptance = {
@@ -203,17 +244,11 @@ export async function acceptChallenge(
     content: JSON.stringify(acceptance),
   };
 
-  const privKeyBytes = identity.secretKey!;
-  const signedEvent = finalizeEvent(eventTemplate, privKeyBytes);
+  const signedEvent = await signEvent(identity, eventTemplate);
+  const published = await publishToRelays(signedEvent);
 
-  for (const relayUrl of DEFAULT_RELAYS) {
-    try {
-      const relay = await Relay.connect(relayUrl);
-      await relay.publish(signedEvent);
-      relay.close();
-    } catch (e) {
-      console.warn(`[BattleRelay] Failed to publish acceptance to ${relayUrl}:`, e);
-    }
+  if (published === 0) {
+    throw new Error('Failed to publish acceptance to any relay.');
   }
 
   console.log('[BattleRelay] Challenge accepted, battle:', battleId);
@@ -229,9 +264,6 @@ export async function submitMove(
   turn: number,
   moveId: string
 ): Promise<void> {
-  const { Relay } = await import('nostr-tools/relay');
-  const { finalizeEvent } = await import('nostr-tools/pure');
-
   const moveEvent: BattleMoveEvent = {
     battleId,
     turn,
@@ -252,17 +284,11 @@ export async function submitMove(
     content: JSON.stringify(moveEvent),
   };
 
-  const privKeyBytes = identity.secretKey!;
-  const signedEvent = finalizeEvent(eventTemplate, privKeyBytes);
+  const signedEvent = await signEvent(identity, eventTemplate);
+  const published = await publishToRelays(signedEvent);
 
-  for (const relayUrl of DEFAULT_RELAYS) {
-    try {
-      const relay = await Relay.connect(relayUrl);
-      await relay.publish(signedEvent);
-      relay.close();
-    } catch (e) {
-      console.warn(`[BattleRelay] Failed to publish move to ${relayUrl}:`, e);
-    }
+  if (published === 0) {
+    throw new Error('Failed to publish move to any relay.');
   }
 
   console.log(`[BattleRelay] Move submitted: turn ${turn}, move ${moveId}`);
@@ -281,7 +307,10 @@ export async function subscribeToMoves(
 
   for (const relayUrl of DEFAULT_RELAYS.slice(0, 2)) {
     try {
-      const relay = await Relay.connect(relayUrl);
+      const relay = await Promise.race([
+        Relay.connect(relayUrl),
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timeout')), 5000)),
+      ]);
 
       const sub = relay.subscribe(
         [
@@ -289,7 +318,7 @@ export async function subscribeToMoves(
             kinds: [30078],
             '#t': ['fabricpet-move'],
             '#e': [battleId],
-            since: Math.floor(Date.now() / 1000) - 300, // Last 5 min
+            since: Math.floor(Date.now() / 1000) - 300,
           },
         ],
         {
@@ -319,15 +348,4 @@ export async function subscribeToMoves(
   }
 
   return () => closeFns.forEach(fn => fn());
-}
-
-/**
- * Convert hex string to Uint8Array.
- */
-function hexToBytes(hex: string): Uint8Array {
-  const bytes = new Uint8Array(hex.length / 2);
-  for (let i = 0; i < hex.length; i += 2) {
-    bytes[i / 2] = parseInt(hex.substring(i, i + 2), 16);
-  }
-  return bytes;
 }
