@@ -182,7 +182,7 @@ function generateOpponent(playerLevel: number, playerStats: import('../types').B
 type BattleMode = 'fight' | 'arena';
 
 export function BattleScreen() {
-  const { pet, setPet, identity, activeBattle, setActiveBattle, setNotification } = useStore();
+  const { pet, setPet, identity, activeBattle, setActiveBattle, setNotification, deepLinkParams, setDeepLinkParams } = useStore();
   const [battleMode, setBattleMode] = useState<BattleMode>('fight');
   const [selectedMove, setSelectedMove] = useState<string | null>(null);
   const [battleLog, setBattleLog] = useState<string[]>([]);
@@ -193,6 +193,15 @@ export function BattleScreen() {
   const [difficulty, setDifficulty] = useState<Difficulty>('normal');
   const [battleResult, setBattleResult] = useState<'won' | 'lost' | null>(null);
   const [showRPS, setShowRPS] = useState(false);
+
+  // Auto-open RPS if navigated from a challenge (e.g., from visited pet card)
+  useEffect(() => {
+    if (deepLinkParams.challengeMode === 'rps') {
+      setShowRPS(true);
+      // Clear the params so we don't re-trigger
+      setDeepLinkParams({});
+    }
+  }, [deepLinkParams.challengeMode, setDeepLinkParams]);
 
   // Subscribe to incoming Nostr challenges
   useEffect(() => {

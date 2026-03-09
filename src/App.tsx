@@ -31,8 +31,8 @@ export default function App() {
     setLoading(true);
 
     try {
-      // Try to load stored identity
-      let id = loadStoredIdentity();
+      // Try to load stored identity (async — decodes nsec for signing)
+      let id = await loadStoredIdentity();
 
       // If no stored identity, try NIP-07 extension
       if (!id && hasNostrExtension()) {

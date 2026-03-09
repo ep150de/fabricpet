@@ -16,10 +16,13 @@ export type ProximityCallback = (event: ProximityEvent) => void;
 
 let pollInterval: ReturnType<typeof setInterval> | null = null;
 let listeners: ProximityCallback[] = [];
+let msfAvailable: boolean | null = null; // null = unknown, true/false = checked
+let msfCheckCount = 0;
 
 /**
  * Start polling the MSF service for proximity events.
  * When another FabricPet user is nearby in RP1, triggers callbacks.
+ * Gracefully handles unavailable MSF service (no console spam).
  */
 export function startRP1Listener(
   myPubkey: string,
@@ -30,6 +33,13 @@ export function startRP1Listener(
   console.log('[RP1Listener] Starting proximity polling...');
 
   pollInterval = setInterval(async () => {
+    // If MSF was confirmed unavailable, skip polling (re-check every 30 cycles)
+    if (msfAvailable === false) {
+      msfCheckCount++;
+      if (msfCheckCount < 30) return; // Skip ~5 minutes between retries
+      msfCheckCount = 0;
+    }
+
     try {
       const response = await fetch(
         `${RP1_CONFIG.msfServiceUrl}/api/proximity?pubkey=${myPubkey}&cid=${RP1_CONFIG.startCid}`,
@@ -37,6 +47,7 @@ export function startRP1Listener(
       );
 
       if (response.ok) {
+        msfAvailable = true;
         const data = await response.json();
         if (data.events && Array.isArray(data.events)) {
           for (const event of data.events) {
@@ -50,9 +61,19 @@ export function startRP1Listener(
             listeners.forEach(cb => cb(proximityEvent));
           }
         }
+      } else {
+        // 404 or other error — mark as unavailable, log once
+        if (msfAvailable !== false) {
+          console.log('[RP1Listener] MSF service not available (will retry periodically)');
+        }
+        msfAvailable = false;
       }
     } catch {
-      // MSF service not available — silent fail
+      // Network error — mark as unavailable silently
+      if (msfAvailable !== false) {
+        console.log('[RP1Listener] MSF service unreachable (will retry periodically)');
+      }
+      msfAvailable = false;
     }
   }, intervalMs);
 }

@@ -17,7 +17,7 @@ const ELEMENT_EMOJI: Record<string, string> = {
 };
 
 export function SocialView() {
-  const { identity, pet, deepLinkParams, setDeepLinkParams } = useStore();
+  const { identity, pet, deepLinkParams, setDeepLinkParams, setView } = useStore();
   const [tab, setTab] = useState<SocialTab>('leaderboard');
 
   // Handle deep link params (e.g., from QR scan or URL ?rp1_action=visit&pubkey=...)
@@ -208,7 +208,7 @@ function LeaderboardTab() {
 // ============================================
 
 function VisitTab() {
-  const { identity, pet, deepLinkParams, setDeepLinkParams } = useStore();
+  const { identity, pet, deepLinkParams, setDeepLinkParams, setView } = useStore();
   const [npubInput, setNpubInput] = useState('');
   const [visitedPet, setVisitedPet] = useState<VisitedPet | null>(null);
   const [loading, setLoading] = useState(false);
@@ -367,6 +367,20 @@ function VisitTab() {
               </span>
             </div>
           </div>
+
+          {/* Challenge to RPS Battle */}
+          {identity && pet && (
+            <button
+              onClick={() => {
+                // Store the visited pet's pubkey for the RPS challenge, then navigate to battle
+                useStore.getState().setDeepLinkParams({ challengePubkey: visitedPet.pubkey, challengeMode: 'rps' });
+                setView('battle');
+              }}
+              className="w-full bg-gradient-to-r from-orange-500 to-pink-500 text-white font-semibold py-3 rounded-xl hover:from-orange-600 hover:to-pink-600 transition-all active:scale-98"
+            >
+              🎲 Challenge {visitedPet.pet.name} to RPS Battle!
+            </button>
+          )}
 
           {/* Guestbook */}
           <div className="bg-[#1a1a2e] rounded-xl p-4 border border-gray-800">

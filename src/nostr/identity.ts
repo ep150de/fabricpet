@@ -75,20 +75,30 @@ export function generateNewIdentity(): NostrIdentity {
 
 /**
  * Load existing identity from localStorage.
+ * Now async to properly decode the stored nsec key for signing.
  */
-export function loadStoredIdentity(): NostrIdentity | null {
+export async function loadStoredIdentity(): Promise<NostrIdentity | null> {
   try {
     const pubkey = localStorage.getItem('fabricpet_pubkey');
     const nsecStr = localStorage.getItem('fabricpet_nsec');
 
     if (!pubkey) return null;
 
-    // We store the nsec but for signing we'll need to decode it
-    // For simplicity, we regenerate from stored pubkey
+    // Decode nsec to get the actual secret key for signing
+    let secretKey: Uint8Array | null = null;
+    if (nsecStr) {
+      secretKey = await decodeNsecAsync(nsecStr);
+      if (secretKey) {
+        console.log('[Identity] ✅ Secret key decoded from stored nsec — signing enabled');
+      } else {
+        console.warn('[Identity] ⚠️ Failed to decode nsec — signing will be unavailable');
+      }
+    }
+
     return {
       pubkey,
       npub: npubEncode(pubkey),
-      secretKey: nsecStr ? decodeNsec(nsecStr) : null,
+      secretKey,
       isExtension: false,
     };
   } catch {
@@ -109,11 +119,6 @@ async function decodeNsecAsync(nsec: string): Promise<Uint8Array | null> {
   } catch {
     // ignore
   }
-  return null;
-}
-
-function decodeNsec(_nsec: string): Uint8Array | null {
-  // Synchronous fallback — returns null, async version used at runtime
   return null;
 }
 
