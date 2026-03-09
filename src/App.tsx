@@ -19,10 +19,12 @@ import { SocialView } from './components/SocialView';
 import { ARView } from './components/ARView';
 import { SetupScreen } from './components/SetupScreen';
 import { scheduleSceneSync } from './rp1/SceneSync';
+import { parseDeepLink, clearDeepLinkParams } from './rp1/DeepLinkHandler';
+import { startRP1Listener, stopRP1Listener } from './rp1/RP1Listener';
 import { Notification } from './components/Notification';
 
 export default function App() {
-  const { identity, setIdentity, pet, setPet, currentView, isLoading, setLoading, notification, wallet } = useStore();
+  const { identity, setIdentity, pet, setPet, currentView, setView, isLoading, setLoading, notification, wallet } = useStore();
 
   // Initialize identity and load pet state
   const initialize = useCallback(async () => {
@@ -96,6 +98,23 @@ export default function App() {
   useEffect(() => {
     initialize();
   }, [initialize]);
+
+  // Process deep links on load
+  useEffect(() => {
+    const deepLink = parseDeepLink();
+    if (deepLink) {
+      console.log('[DeepLink] Processing:', deepLink);
+      setView(deepLink.view);
+      clearDeepLinkParams();
+    }
+  }, [setView]);
+
+  // Start RP1 proximity listener when identity is available
+  useEffect(() => {
+    if (!identity) return;
+    startRP1Listener(identity.pubkey);
+    return () => stopRP1Listener();
+  }, [identity]);
 
   // Save to localStorage on every pet change
   useEffect(() => {

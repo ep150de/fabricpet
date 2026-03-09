@@ -4,6 +4,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useStore } from '../store/useStore';
+import { ArenaView } from './ArenaView';
 import { publishChallenge, subscribeToChallenges, type BattleChallenge } from '../nostr/battleRelay';
 import { createBattle, executeTurn, calculateBattleXP, getBattleSummary } from '../battle/BattleEngine';
 import { getMove, MOVES } from '../engine/MoveDatabase';
@@ -36,8 +37,11 @@ function generateOpponent(playerLevel: number) {
   };
 }
 
+type BattleMode = 'fight' | 'arena';
+
 export function BattleScreen() {
   const { pet, setPet, identity, activeBattle, setActiveBattle, setNotification } = useStore();
+  const [battleMode, setBattleMode] = useState<BattleMode>('fight');
   const [selectedMove, setSelectedMove] = useState<string | null>(null);
   const [battleLog, setBattleLog] = useState<string[]>([]);
   const [isAnimating, setIsAnimating] = useState(false);
@@ -169,11 +173,71 @@ export function BattleScreen() {
   if (!activeBattle) {
     return (
       <div className="p-4 max-w-lg mx-auto">
-        <div className="text-center mb-6">
+        <div className="text-center mb-4">
           <h2 className="text-2xl font-bold text-white">⚔️ Battle Arena</h2>
           <p className="text-gray-400 mt-1">Challenge opponents to friendly battles!</p>
         </div>
 
+        {/* Mode Tab Switcher */}
+        <div className="flex gap-2 mb-4">
+          <button
+            onClick={() => setBattleMode('fight')}
+            className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-all ${
+              battleMode === 'fight'
+                ? 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/50'
+                : 'bg-[#1a1a2e] text-gray-500 border border-gray-800'
+            }`}
+          >
+            ⚔️ Fight
+          </button>
+          <button
+            onClick={() => setBattleMode('arena')}
+            className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-all ${
+              battleMode === 'arena'
+                ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/50'
+                : 'bg-[#1a1a2e] text-gray-500 border border-gray-800'
+            }`}
+          >
+            🏟️ HoloBall Arena
+          </button>
+        </div>
+
+        {/* Arena Mode */}
+        {battleMode === 'arena' && (
+          <div className="mb-4">
+            <ArenaView height="300px" className="rounded-xl overflow-hidden border border-gray-800" />
+            <div className="bg-[#1a1a2e] rounded-xl p-4 mt-3 border border-gray-800">
+              <h3 className="text-sm font-semibold text-cyan-300 mb-2">🏟️ HoloBall Arena</h3>
+              <p className="text-xs text-gray-400 mb-3">
+                The HoloBall Arena features 7 unique biomes with elemental affinities.
+                Throw HoloBalls to capture, battle in spatial arenas, and spectate matches!
+              </p>
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div className="bg-[#0f0f23] rounded-lg p-2 text-center">
+                  <span className="text-cyan-400">⚡</span> Cyber Grid
+                </div>
+                <div className="bg-[#0f0f23] rounded-lg p-2 text-center">
+                  <span className="text-red-400">🌋</span> Volcanic Forge
+                </div>
+                <div className="bg-[#0f0f23] rounded-lg p-2 text-center">
+                  <span className="text-blue-400">🌊</span> Deep Ocean
+                </div>
+                <div className="bg-[#0f0f23] rounded-lg p-2 text-center">
+                  <span className="text-purple-400">💎</span> Crystal Cavern
+                </div>
+                <div className="bg-[#0f0f23] rounded-lg p-2 text-center">
+                  <span className="text-gray-400">🌀</span> Void Nexus
+                </div>
+                <div className="bg-[#0f0f23] rounded-lg p-2 text-center">
+                  <span className="text-yellow-400">⛩️</span> Sky Temple
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Fight Mode */}
+        {battleMode === 'fight' && <>
         {/* Pet Preview */}
         <div className="bg-[#1a1a2e] rounded-xl p-6 mb-4 border border-gray-800 text-center">
           <div className="text-5xl mb-2">{getStageEmoji(pet.stage)}</div>
@@ -290,6 +354,7 @@ export function BattleScreen() {
             </div>
           </div>
         </div>
+        </>}
       </div>
     );
   }
