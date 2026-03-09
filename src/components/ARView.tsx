@@ -16,7 +16,6 @@ export function ARView() {
   const [webxrActive, setWebxrActive] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const xrSessionRef = useRef<any>(null);
@@ -237,13 +236,13 @@ export function ARView() {
 
   // 3D pet overlay on camera — only init AFTER camera is ready (video playing)
   useEffect(() => {
-    if (!cameraActive || !cameraReady || !canvasRef.current || !containerRef.current) return;
+    if (!cameraActive || !cameraReady || !containerRef.current) return;
 
-    const canvas = canvasRef.current;
     const container = containerRef.current;
     let cancelled = false;
     let loopAnimId: number;
     let renderer: THREE.WebGLRenderer | null = null;
+    let canvas: HTMLCanvasElement | null = null;
     const geometries: THREE.BufferGeometry[] = [];
     const materials: THREE.Material[] = [];
 
@@ -257,8 +256,13 @@ export function ARView() {
         return;
       }
 
+      canvas = document.createElement('canvas');
+      canvas.className = 'absolute inset-0 w-full h-full pointer-events-none';
+      canvas.style.zIndex = '1';
+      canvas.style.background = 'transparent';
       canvas.width = width * window.devicePixelRatio;
       canvas.height = height * window.devicePixelRatio;
+      container.appendChild(canvas);
 
       try {
         renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true, premultipliedAlpha: false });
@@ -368,6 +372,9 @@ export function ARView() {
         renderer.dispose();
         renderer.forceContextLoss();
       }
+      if (canvas && canvas.parentNode) {
+        canvas.parentNode.removeChild(canvas);
+      }
     };
   }, [cameraActive, cameraReady, pet]);
 
@@ -470,13 +477,6 @@ export function ARView() {
               </div>
             </div>
           )}
-
-          {/* 3D pet overlay — z-index 1, transparent background */}
-          <canvas
-            ref={canvasRef}
-            className="absolute inset-0 w-full h-full pointer-events-none"
-            style={{ zIndex: 1, background: 'transparent' }}
-          />
 
           {/* Pet info overlay — z-index 2 */}
           <div className="absolute top-3 left-3 bg-black/50 backdrop-blur-sm rounded-lg px-3 py-1" style={{ zIndex: 2 }}>

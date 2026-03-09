@@ -186,7 +186,12 @@ async function ollamaChat(messages: ChatMessage[], cfg: LLMConfig): Promise<LLMR
     }),
   });
 
-  if (!res.ok) throw new Error(`Ollama error: ${res.status}`);
+  if (!res.ok) {
+    if (res.status === 404) {
+      throw new Error('Ollama model not found. Run `ollama pull llama3.2` (or another model) first, then retry.');
+    }
+    throw new Error(`Ollama error: ${res.status}`);
+  }
   const data = await res.json();
 
   return {
@@ -216,7 +221,12 @@ async function ollamaChatStream(
     }),
   });
 
-  if (!res.ok) throw new Error(`Ollama error: ${res.status}`);
+  if (!res.ok) {
+    if (res.status === 404) {
+      throw new Error('Ollama model not found. Run `ollama pull llama3.2` (or another model) first, then retry.');
+    }
+    throw new Error(`Ollama error: ${res.status}`);
+  }
 
   const reader = res.body?.getReader();
   if (!reader) throw new Error('No response body');
