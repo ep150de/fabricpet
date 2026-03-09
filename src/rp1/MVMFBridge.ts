@@ -100,18 +100,40 @@ export function homeToMVMFModel(home: HomeState): MVMFHomeModel {
 
 // --- MSF Service Communication ---
 
+// Track MSF availability to avoid repeated 404 spam
+let msfServiceAvailable: boolean | null = null; // null = unknown
+let msfLastCheckTime = 0;
+const MSF_RECHECK_INTERVAL = 5 * 60 * 1000; // Re-check every 5 minutes
+
 /**
  * Check if the MSF Map Service is reachable.
+ * Caches the result to avoid spamming 404s in the console.
  */
 export async function checkMSFHealth(): Promise<boolean> {
+  const now = Date.now();
+
+  // If we already know it's unavailable and haven't waited long enough, skip
+  if (msfServiceAvailable === false && (now - msfLastCheckTime) < MSF_RECHECK_INTERVAL) {
+    return false;
+  }
+
   try {
     const response = await fetch(`${RP1_CONFIG.msfServiceUrl}/`, {
       method: 'GET',
       signal: AbortSignal.timeout(5000),
     });
+    msfLastCheckTime = now;
+    msfServiceAvailable = response.ok;
+    if (!response.ok && msfServiceAvailable !== false) {
+      console.log('[MVMF Bridge] MSF service not available (will retry in 5 min)');
+    }
     return response.ok;
   } catch {
-    console.warn('[MVMF Bridge] MSF service not reachable');
+    if (msfServiceAvailable !== false) {
+      console.log('[MVMF Bridge] MSF service unreachable (will retry in 5 min)');
+    }
+    msfLastCheckTime = now;
+    msfServiceAvailable = false;
     return false;
   }
 }

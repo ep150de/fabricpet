@@ -8,6 +8,8 @@ export const DEFAULT_RELAYS = [
   'wss://relay.damus.io',
   'wss://nos.lol',
   'wss://relay.snort.social',
+  'wss://purplepag.es',       // Good NIP-78 indexing relay
+  'wss://relay.primal.net',   // Primal relay — good uptime
 ];
 
 // NIP-78 event kind for app-specific data

@@ -28,13 +28,27 @@ export async function savePetState(identity: NostrIdentity, pet: Pet): Promise<b
     const pool = getPool();
     const relays = getRelays();
 
-    await Promise.allSettled(
+    console.log('[PetStorage] Publishing pet state to', relays.length, 'relays...');
+    const results = await Promise.allSettled(
       pool.publish(relays, signedEvent as Parameters<typeof pool.publish>[1])
     );
 
-    return true;
+    // Log per-relay results for debugging
+    let accepted = 0;
+    let rejected = 0;
+    results.forEach((r, i) => {
+      if (r.status === 'fulfilled') {
+        accepted++;
+      } else {
+        rejected++;
+        console.warn(`[PetStorage] Relay ${relays[i]} rejected:`, r.reason);
+      }
+    });
+    console.log(`[PetStorage] Save result: ${accepted} accepted, ${rejected} rejected out of ${relays.length} relays`);
+
+    return accepted > 0;
   } catch (error) {
-    console.error('Failed to save pet state to Nostr:', error);
+    console.error('[PetStorage] Failed to save pet state to Nostr:', error);
     return false;
   }
 }
