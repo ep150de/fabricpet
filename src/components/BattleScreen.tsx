@@ -11,6 +11,7 @@ import { createBattle, executeTurn, calculateBattleXP, getBattleSummary } from '
 import { getMove, MOVES } from '../engine/MoveDatabase';
 import { addXP, getStageEmoji } from '../engine/PetStateMachine';
 import { savePetState } from '../nostr/petStorage';
+import { RPSBattleScreen } from './RPSBattleScreen';
 import type { BattleState, Pet } from '../types';
 
 // ============================================
@@ -191,6 +192,7 @@ export function BattleScreen() {
   const [challengePublished, setChallengePublished] = useState(false);
   const [difficulty, setDifficulty] = useState<Difficulty>('normal');
   const [battleResult, setBattleResult] = useState<'won' | 'lost' | null>(null);
+  const [showRPS, setShowRPS] = useState(false);
 
   // Subscribe to incoming Nostr challenges
   useEffect(() => {
@@ -231,6 +233,11 @@ export function BattleScreen() {
   }, [identity, pet, setNotification]);
 
   if (!pet) return null;
+
+  // Show RPS Battle Screen when active
+  if (showRPS) {
+    return <RPSBattleScreen onBack={() => setShowRPS(false)} />;
+  }
 
   const startPracticeBattle = () => {
     setBattleResult(null);
@@ -413,6 +420,13 @@ export function BattleScreen() {
             className="w-full bg-gradient-to-r from-indigo-500 to-purple-500 text-white font-semibold py-4 rounded-xl hover:from-indigo-600 hover:to-purple-600 transition-all active:scale-98"
           >
             🤖 Practice Battle (vs CPU) — {difficulty === 'easy' ? '🟢 Easy' : difficulty === 'normal' ? '🟡 Normal' : '🔴 Hard'}
+          </button>
+
+          <button
+            onClick={() => setShowRPS(true)}
+            className="w-full bg-gradient-to-r from-orange-500 to-pink-500 text-white font-semibold py-4 rounded-xl hover:from-orange-600 hover:to-pink-600 transition-all active:scale-98"
+          >
+            🎲 RPS Battle — Strike / Wind / Shield (Nostr Signed!)
           </button>
 
           {identity ? (

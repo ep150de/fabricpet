@@ -259,6 +259,29 @@ export function PetView() {
       >
         📸 AR Mode — See {pet.name} in the Real World!
       </button>
+
+      {/* Force Save to Nostr */}
+      <button
+        onClick={async () => {
+          if (!identity) {
+            setNotification({ message: 'No identity — save locally only', emoji: '💾' });
+            return;
+          }
+          setNotification({ message: '📡 Saving to Nostr relays...', emoji: '💾' });
+          try {
+            const ok = await savePetState(identity, pet);
+            setNotification({
+              message: ok ? '✅ Saved to Nostr relays!' : '⚠️ Save may have partially failed',
+              emoji: ok ? '✅' : '⚠️',
+            });
+          } catch {
+            setNotification({ message: '❌ Save failed — check connection', emoji: '❌' });
+          }
+        }}
+        className="w-full bg-[#1a1a2e] border border-gray-700 text-gray-300 font-semibold py-3 rounded-xl hover:border-indigo-500/50 hover:text-indigo-300 transition-all active:scale-98 mt-2"
+      >
+        💾 Force Save to Nostr
+      </button>
       </div>{/* end p-4 wrapper */}
     </div>
   );

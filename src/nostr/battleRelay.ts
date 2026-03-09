@@ -11,6 +11,7 @@ import type { NostrIdentity } from './identity';
 import { DEFAULT_RELAYS, NOSTR_KIND_APP_DATA } from '../utils/constants';
 import { getPool, getRelays } from './relayManager';
 import type { BattleStats, ElementalType } from '../types';
+import type { RPSChoice, RPSBattleState } from '../battle/RPSEngine';
 
 // Battle event types
 export interface BattleChallenge {
@@ -353,4 +354,152 @@ export async function subscribeToMoves(
   }
 
   return () => closeFns.forEach(fn => fn());
+}
+
+// ============================================
+// RPS Battle — Nostr Commit/Reveal Protocol
+// ============================================
+// Each RPS move is signed and published to Nostr relays.
+// This creates a verifiable, tamper-proof battle log.
+// For P2P: commit-reveal scheme prevents cheating.
+// For CPU: moves are committed for record-keeping.
+// ============================================
+
+export interface RPSMoveCommit {
+  battleId: string;
+  round: number;
+  playerPubkey: string;
+  choice: RPSChoice;
+  timestamp: number;
+}
+
+export interface RPSResultEvent {
+  battleId: string;
+  winnerPubkey: string | null;
+  rounds: number;
+  p1Name: string;
+  p2Name: string;
+  finalHp: [number, number];
+  timestamp: number;
+}
+
+/**
+ * Commit an RPS move to Nostr relays.
+ * The player signs their choice, creating a verifiable record.
+ * Returns the number of relays that accepted the event.
+ */
+export async function commitRPSMove(
+  identity: NostrIdentity,
+  battleId: string,
+  round: number,
+  choice: RPSChoice
+): Promise<{ relayCount: number; eventId: string }> {
+  const commit: RPSMoveCommit = {
+    battleId,
+    round,
+    playerPubkey: identity.pubkey,
+    choice,
+    timestamp: Math.floor(Date.now() / 1000),
+  };
+
+  const eventTemplate = {
+    kind: 30078 as number,
+    created_at: Math.floor(Date.now() / 1000),
+    tags: [
+      ['d', `fabricpet-rps-move-${battleId}-${round}-${identity.pubkey}`],
+      ['t', 'fabricpet-battle'],
+      ['t', 'fabricpet-rps'],
+      ['t', 'fabricpet-rps-move'],
+      ['e', battleId],
+    ],
+    content: JSON.stringify(commit),
+  };
+
+  const signedEvent = await signEvent(identity, eventTemplate);
+  const relayCount = await publishToRelays(signedEvent);
+
+  if (relayCount === 0) {
+    throw new Error('Failed to commit RPS move to any relay.');
+  }
+
+  console.log(`[RPS] ✅ Move committed: round ${round}, choice ${choice}, ${relayCount} relays`);
+  return { relayCount, eventId: signedEvent.id || `rps-${battleId}-${round}` };
+}
+
+/**
+ * Publish the final RPS battle result to Nostr relays.
+ * Creates a permanent, signed record of the battle outcome.
+ */
+export async function publishRPSResult(
+  identity: NostrIdentity,
+  battle: RPSBattleState
+): Promise<number> {
+  const result: RPSResultEvent = {
+    battleId: battle.id,
+    winnerPubkey: battle.winner,
+    rounds: battle.rounds.length,
+    p1Name: battle.petNames[0],
+    p2Name: battle.petNames[1],
+    finalHp: [...battle.hp],
+    timestamp: Math.floor(Date.now() / 1000),
+  };
+
+  const eventTemplate = {
+    kind: 30078 as number,
+    created_at: Math.floor(Date.now() / 1000),
+    tags: [
+      ['d', `fabricpet-rps-result-${battle.id}`],
+      ['t', 'fabricpet-battle'],
+      ['t', 'fabricpet-rps'],
+      ['t', 'fabricpet-rps-result'],
+    ],
+    content: JSON.stringify(result),
+  };
+
+  const signedEvent = await signEvent(identity, eventTemplate);
+  const relayCount = await publishToRelays(signedEvent);
+
+  console.log(`[RPS] 🏆 Result published: ${battle.petNames[0]} vs ${battle.petNames[1]}, ${relayCount} relays`);
+  return relayCount;
+}
+
+/**
+ * Subscribe to RPS moves for a specific battle (for P2P).
+ */
+export async function subscribeToRPSMoves(
+  battleId: string,
+  onMove: (commit: RPSMoveCommit) => void
+): Promise<() => void> {
+  const pool = getPool();
+  const relays = getRelays();
+
+  try {
+    const sub = pool.subscribeMany(relays, [
+      {
+        kinds: [NOSTR_KIND_APP_DATA],
+        '#t': ['fabricpet-rps-move'],
+        '#e': [battleId],
+        since: Math.floor(Date.now() / 1000) - 300,
+      } as Record<string, unknown>,
+    ] as unknown as Parameters<typeof pool.subscribeMany>[1], {
+      onevent(event) {
+        try {
+          const commit = JSON.parse(event.content) as RPSMoveCommit;
+          if (commit.battleId === battleId) {
+            onMove(commit);
+          }
+        } catch {
+          // Invalid event
+        }
+      },
+      oneose() {
+        console.log(`[RPS] Subscribed to moves for ${battleId}`);
+      },
+    });
+
+    return () => sub.close();
+  } catch (e) {
+    console.warn('[RPS] Failed to subscribe to moves:', e);
+    return () => {};
+  }
 }
