@@ -4,13 +4,137 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useStore } from '../store/useStore';
+import { useArenaStore } from '../store/arenaStore';
 import { ArenaView } from './ArenaView';
 import { publishChallenge, subscribeToChallenges, type BattleChallenge } from '../nostr/battleRelay';
 import { createBattle, executeTurn, calculateBattleXP, getBattleSummary } from '../battle/BattleEngine';
 import { getMove, MOVES } from '../engine/MoveDatabase';
 import { addXP, getStageEmoji } from '../engine/PetStateMachine';
 import { savePetState } from '../nostr/petStorage';
-import type { BattleState } from '../types';
+import type { BattleState, Pet } from '../types';
+
+// ============================================
+// Arena Mode Panel — Biome selector + arena battle launcher
+// ============================================
+
+const BIOMES = [
+  { id: 'cyber_grid', name: 'Cyber Grid', emoji: '⚡', color: 'text-cyan-400', bg: 'from-cyan-900/40 to-blue-900/40', element: 'air', desc: 'Neon-lit digital battlefield with pulsing grid lines' },
+  { id: 'volcanic_forge', name: 'Volcanic Forge', emoji: '🌋', color: 'text-red-400', bg: 'from-red-900/40 to-orange-900/40', element: 'fire', desc: 'Molten lava flows and volcanic eruptions' },
+  { id: 'deep_ocean', name: 'Deep Ocean', emoji: '🌊', color: 'text-blue-400', bg: 'from-blue-900/40 to-indigo-900/40', element: 'water', desc: 'Bioluminescent deep sea arena' },
+  { id: 'crystal_cavern', name: 'Crystal Cavern', emoji: '💎', color: 'text-purple-400', bg: 'from-purple-900/40 to-violet-900/40', element: 'light', desc: 'Shimmering crystal formations and prismatic light' },
+  { id: 'void_nexus', name: 'Void Nexus', emoji: '🌀', color: 'text-gray-400', bg: 'from-gray-900/40 to-slate-900/40', element: 'dark', desc: 'Swirling void energy and dark matter' },
+  { id: 'sky_temple', name: 'Sky Temple', emoji: '⛩️', color: 'text-yellow-400', bg: 'from-yellow-900/40 to-amber-900/40', element: 'air', desc: 'Floating temple above the clouds' },
+  { id: 'overgrown_ruins', name: 'Overgrown Ruins', emoji: '🌿', color: 'text-green-400', bg: 'from-green-900/40 to-emerald-900/40', element: 'earth', desc: 'Ancient ruins reclaimed by nature' },
+] as const;
+
+function ArenaModePanel({ pet, startPracticeBattle }: { pet: Pet; startPracticeBattle: () => void }) {
+  const { arenaStatus, selectedBiome, setSelectedBiome, setArenaStatus, setMaterializationProgress, resetArena } = useArenaStore();
+  const [materializing, setMaterializing] = useState(false);
+
+  const selectedBiomeData = BIOMES.find(b => b.id === selectedBiome) || null;
+
+  const handleStartArenaBattle = () => {
+    if (!selectedBiome) return;
+
+    // Simulate arena materialization
+    setMaterializing(true);
+    setArenaStatus('materializing');
+    let progress = 0;
+    const interval = setInterval(() => {
+      progress += 0.05;
+      setMaterializationProgress(Math.min(progress, 1));
+      if (progress >= 1) {
+        clearInterval(interval);
+        setArenaStatus('active');
+        setMaterializing(false);
+        // Start the battle in the arena context
+        startPracticeBattle();
+      }
+    }, 100);
+  };
+
+  return (
+    <div className="mb-4 space-y-3">
+      {/* Arena Viewport */}
+      <ArenaView height="200px" className="rounded-xl overflow-hidden border border-gray-800" />
+
+      {/* Arena Status */}
+      <div className="bg-[#1a1a2e] rounded-xl p-3 border border-gray-800 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <div className={`w-2 h-2 rounded-full ${
+            arenaStatus === 'active' ? 'bg-green-400' :
+            arenaStatus === 'materializing' ? 'bg-yellow-400 animate-pulse' :
+            arenaStatus === 'resolving' ? 'bg-red-400 animate-pulse' :
+            'bg-gray-600'
+          }`} />
+          <span className="text-xs text-gray-400 capitalize">Arena: {arenaStatus}</span>
+        </div>
+        {arenaStatus !== 'dormant' && (
+          <button onClick={resetArena} className="text-xs text-gray-500 hover:text-gray-300">Reset</button>
+        )}
+      </div>
+
+      {/* Biome Selector */}
+      <div className="bg-[#1a1a2e] rounded-xl p-4 border border-gray-800">
+        <h3 className="text-sm font-semibold text-cyan-300 mb-3">🏟️ Select Arena Biome</h3>
+        <div className="grid grid-cols-1 gap-2">
+          {BIOMES.map((biome) => (
+            <button
+              key={biome.id}
+              onClick={() => setSelectedBiome(biome.id as any)}
+              className={`flex items-center gap-3 p-3 rounded-lg transition-all text-left ${
+                selectedBiome === biome.id
+                  ? `bg-gradient-to-r ${biome.bg} border border-${biome.color.replace('text-', '')}/50`
+                  : 'bg-[#0f0f23] border border-gray-800 hover:border-gray-700'
+              }`}
+            >
+              <span className="text-2xl">{biome.emoji}</span>
+              <div className="flex-1">
+                <div className={`text-sm font-semibold ${selectedBiome === biome.id ? biome.color : 'text-gray-300'}`}>
+                  {biome.name}
+                </div>
+                <div className="text-xs text-gray-500">{biome.desc}</div>
+              </div>
+              <span className="text-xs text-gray-600 capitalize">{biome.element}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Start Arena Battle */}
+      <button
+        onClick={handleStartArenaBattle}
+        disabled={!selectedBiome || materializing}
+        className={`w-full font-semibold py-4 rounded-xl transition-all active:scale-98 ${
+          !selectedBiome
+            ? 'bg-[#1a1a2e] border border-gray-700 text-gray-500 cursor-not-allowed'
+            : materializing
+            ? 'bg-gradient-to-r from-cyan-700 to-teal-700 text-cyan-200'
+            : 'bg-gradient-to-r from-cyan-500 to-teal-500 text-white hover:from-cyan-600 hover:to-teal-600'
+        }`}
+      >
+        {materializing
+          ? '⏳ Materializing Arena...'
+          : selectedBiome
+          ? `🏟️ Start Arena Battle — ${selectedBiomeData?.name}`
+          : '🏟️ Select a Biome to Battle'}
+      </button>
+
+      {/* Pet Preview in Arena Context */}
+      <div className="bg-[#1a1a2e] rounded-xl p-4 border border-gray-800 text-center">
+        <div className="text-4xl mb-2">{getStageEmoji(pet.stage)}</div>
+        <div className="text-sm font-semibold text-white">{pet.name}</div>
+        <div className="text-xs text-gray-400">Lv.{pet.level} • {pet.elementalType} type</div>
+        <div className="flex justify-center gap-3 mt-2 text-xs">
+          <span className="text-red-400">HP:{pet.battleStats.hp}</span>
+          <span className="text-orange-400">ATK:{pet.battleStats.atk}</span>
+          <span className="text-blue-400">DEF:{pet.battleStats.def}</span>
+          <span className="text-green-400">SPD:{pet.battleStats.spd}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // Generate a random opponent for practice battles
 function generateOpponent(playerLevel: number) {
@@ -203,38 +327,7 @@ export function BattleScreen() {
         </div>
 
         {/* Arena Mode */}
-        {battleMode === 'arena' && (
-          <div className="mb-4">
-            <ArenaView height="300px" className="rounded-xl overflow-hidden border border-gray-800" />
-            <div className="bg-[#1a1a2e] rounded-xl p-4 mt-3 border border-gray-800">
-              <h3 className="text-sm font-semibold text-cyan-300 mb-2">🏟️ HoloBall Arena</h3>
-              <p className="text-xs text-gray-400 mb-3">
-                The HoloBall Arena features 7 unique biomes with elemental affinities.
-                Throw HoloBalls to capture, battle in spatial arenas, and spectate matches!
-              </p>
-              <div className="grid grid-cols-2 gap-2 text-xs">
-                <div className="bg-[#0f0f23] rounded-lg p-2 text-center">
-                  <span className="text-cyan-400">⚡</span> Cyber Grid
-                </div>
-                <div className="bg-[#0f0f23] rounded-lg p-2 text-center">
-                  <span className="text-red-400">🌋</span> Volcanic Forge
-                </div>
-                <div className="bg-[#0f0f23] rounded-lg p-2 text-center">
-                  <span className="text-blue-400">🌊</span> Deep Ocean
-                </div>
-                <div className="bg-[#0f0f23] rounded-lg p-2 text-center">
-                  <span className="text-purple-400">💎</span> Crystal Cavern
-                </div>
-                <div className="bg-[#0f0f23] rounded-lg p-2 text-center">
-                  <span className="text-gray-400">🌀</span> Void Nexus
-                </div>
-                <div className="bg-[#0f0f23] rounded-lg p-2 text-center">
-                  <span className="text-yellow-400">⛩️</span> Sky Temple
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
+        {battleMode === 'arena' && <ArenaModePanel pet={pet} startPracticeBattle={startPracticeBattle} />}
 
         {/* Fight Mode */}
         {battleMode === 'fight' && <>
@@ -282,10 +375,10 @@ export function BattleScreen() {
           )}
 
           <button
-            disabled
-            className="w-full bg-[#1a1a2e] border border-gray-700 text-gray-500 font-semibold py-4 rounded-xl cursor-not-allowed"
+            onClick={() => setBattleMode('arena')}
+            className="w-full bg-gradient-to-r from-cyan-500 to-teal-500 text-white font-semibold py-4 rounded-xl hover:from-cyan-600 hover:to-teal-600 transition-all active:scale-98"
           >
-            🏟️ Spatial Arena (RP1 Fabric) — Coming Soon
+            🏟️ HoloBall Arena Battle (Spatial Fabric)
           </button>
         </div>
 
