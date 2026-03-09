@@ -4,8 +4,8 @@
 
 // Nostr relay URLs (public, free relays)
 export const DEFAULT_RELAYS = [
+  'wss://relay.nostr.band',   // Best for indexing/discovery (supports all tag queries)
   'wss://relay.damus.io',
-  'wss://relay.nostr.band',
   'wss://nos.lol',
   'wss://relay.snort.social',
 ];

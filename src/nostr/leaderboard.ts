@@ -23,13 +23,18 @@ export interface LeaderboardEntry {
  * 
  * Uses the same SimplePool as petStorage for reliable connections.
  */
-export async function fetchLeaderboard(timeoutMs: number = 8000): Promise<LeaderboardEntry[]> {
+export async function fetchLeaderboard(timeoutMs: number = 12000): Promise<LeaderboardEntry[]> {
   const pool = getPool();
-  const relays = getRelays();
+  // Use indexing-capable relays first (relay.nostr.band indexes all events)
+  const leaderboardRelays = [
+    'wss://relay.nostr.band',
+    ...getRelays().filter(r => r !== 'wss://relay.nostr.band'),
+  ];
   const entries = new Map<string, LeaderboardEntry>();
 
   return new Promise<LeaderboardEntry[]>((resolve) => {
     let resolved = false;
+    let eoseCount = 0;
 
     const done = () => {
       if (resolved) return;
@@ -51,12 +56,12 @@ export async function fetchLeaderboard(timeoutMs: number = 8000): Promise<Leader
         return b.petLevel - a.petLevel;
       });
 
-      console.log(`[Leaderboard] Found ${leaderboard.length} players`);
+      console.log(`[Leaderboard] Found ${leaderboard.length} players from ${eoseCount} relays`);
       resolve(leaderboard);
     };
 
     try {
-      const sub = pool.subscribeMany(relays, [
+      const sub = pool.subscribeMany(leaderboardRelays, [
         {
           kinds: [NOSTR_KIND_APP_DATA],
           '#d': [NOSTR_D_TAGS.PET_STATE],
@@ -89,10 +94,13 @@ export async function fetchLeaderboard(timeoutMs: number = 8000): Promise<Leader
           } catch { /* skip invalid */ }
         },
         oneose() {
-          // All relays have sent their stored events
-          console.log('[Leaderboard] EOSE received');
-          sub.close();
-          done();
+          eoseCount++;
+          console.log(`[Leaderboard] EOSE from relay ${eoseCount}/${leaderboardRelays.length}, ${entries.size} entries so far`);
+          // Resolve after first relay responds with data, or after all respond
+          if (entries.size > 0 || eoseCount >= leaderboardRelays.length) {
+            try { sub.close(); } catch {}
+            done();
+          }
         },
       });
 

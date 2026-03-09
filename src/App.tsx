@@ -7,7 +7,7 @@ import { useStore } from './store/useStore';
 import { loadStoredIdentity, hasNostrExtension, connectWithExtension, generateNewIdentity } from './nostr/identity';
 import { loadPetState, savePetState } from './nostr/petStorage';
 import { decayNeeds } from './engine/NeedsSystem';
-import { saveLocalPet, loadLocalPet } from './store/localStorage';
+import { saveLocalPet, loadLocalPet, saveLocalRoster, loadLocalRoster } from './store/localStorage';
 import { Navigation } from './components/Navigation';
 import { PetView } from './components/PetView';
 import { BattleScreen } from './components/BattleScreen';
@@ -24,7 +24,7 @@ import { startRP1Listener, stopRP1Listener } from './rp1/RP1Listener';
 import { Notification } from './components/Notification';
 
 export default function App() {
-  const { identity, setIdentity, pet, setPet, currentView, setView, isLoading, setLoading, notification, wallet } = useStore();
+  const { identity, setIdentity, pet, setPet, currentView, setView, isLoading, setLoading, notification, wallet, roster, setRoster } = useStore();
 
   // Initialize identity and load pet state
   const initialize = useCallback(async () => {
@@ -88,6 +88,21 @@ export default function App() {
         setPet(decayedPet);
         saveLocalPet(decayedPet); // Persist decayed state
       }
+
+      // 4. Load roster (multi-pet support) — migrates single pet if needed
+      const localRoster = loadLocalRoster();
+      if (localRoster) {
+        // Update max slots based on wallet (will be updated again when wallet connects)
+        setRoster(localRoster.roster);
+        console.log(`[Init] Loaded roster: ${localRoster.roster.pets.length} pets, active: ${localRoster.roster.activePetId}`);
+      } else if (bestPet) {
+        // Bootstrap roster from the single pet we just loaded
+        setRoster({
+          pets: [bestPet],
+          activePetId: bestPet.id,
+          maxSlots: 1,
+        });
+      }
     } catch (error) {
       console.error('Initialization error:', error);
     } finally {
@@ -116,12 +131,30 @@ export default function App() {
     return () => stopRP1Listener();
   }, [identity]);
 
-  // Save to localStorage on every pet change
+  // Save to localStorage on every pet change + save roster
   useEffect(() => {
     if (pet) {
       saveLocalPet(pet);
     }
   }, [pet]);
+
+  // Save roster whenever it changes
+  useEffect(() => {
+    if (roster.pets.length > 0) {
+      saveLocalRoster(roster);
+    }
+  }, [roster]);
+
+  // Update max pet slots when wallet inscriptions change
+  useEffect(() => {
+    if (wallet.connected) {
+      const maxSlots = Math.max(1, wallet.inscriptions.length);
+      if (maxSlots !== roster.maxSlots) {
+        setRoster({ ...roster, maxSlots });
+        console.log(`[Roster] Max pet slots updated: ${maxSlots} (${wallet.inscriptions.length} inscriptions)`);
+      }
+    }
+  }, [wallet.inscriptions.length, wallet.connected]);
 
   // Periodic needs decay (every 30 seconds) + save to localStorage
   // Uses functional update to avoid stale closure overwriting battle records
@@ -130,7 +163,7 @@ export default function App() {
     if (!pet) return;
 
     const interval = setInterval(() => {
-      updatePetFn((prev) => {
+      updatePetFn((prev: import('./types').Pet) => {
         const updated = decayNeeds(prev, 0.5); // 0.5 minutes = 30 seconds
         saveLocalPet(updated);
         return updated;

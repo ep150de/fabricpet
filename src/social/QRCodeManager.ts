@@ -1,18 +1,22 @@
 // ============================================
 // QR Code Manager — Generate & scan QR codes for pet visiting
 // ============================================
-// Uses a lightweight canvas-based QR generator (no external deps)
+// Uses the `qrcode` npm package (MIT license) for real, scannable QR codes
 // and the native BarcodeDetector API for scanning.
 // ============================================
 
+import QRCode from 'qrcode';
+
 /**
- * Generate a QR code as a data URL using canvas.
+ * Generate a QR code as a data URL using the qrcode library.
  * Encodes the FabricPet visit deep link with the user's pubkey.
  */
 export function generateVisitQRDataUrl(pubkey: string, baseUrl?: string): string {
   const url = baseUrl || `${window.location.origin}${window.location.pathname}`;
   const deepLink = `${url}?rp1_action=visit&pubkey=${pubkey}`;
-  return generateQRCanvas(deepLink);
+  // Return empty string initially, caller should use async version
+  // This sync version kicks off async generation
+  return generateQRAsync(deepLink);
 }
 
 /**
@@ -21,7 +25,69 @@ export function generateVisitQRDataUrl(pubkey: string, baseUrl?: string): string
 export function generateBattleQRDataUrl(pubkey: string, petName: string, baseUrl?: string): string {
   const url = baseUrl || `${window.location.origin}${window.location.pathname}`;
   const deepLink = `${url}?rp1_action=battle&challenger=${pubkey}&name=${encodeURIComponent(petName)}`;
-  return generateQRCanvas(deepLink);
+  return generateQRAsync(deepLink);
+}
+
+/**
+ * Async QR generation — returns a proper scannable QR code data URL.
+ */
+export async function generateQRDataUrlAsync(data: string): Promise<string> {
+  try {
+    return await QRCode.toDataURL(data, {
+      width: 256,
+      margin: 2,
+      color: {
+        dark: '#000000',
+        light: '#ffffff',
+      },
+      errorCorrectionLevel: 'M',
+    });
+  } catch (e) {
+    console.error('[QR] Failed to generate QR code:', e);
+    return '';
+  }
+}
+
+/**
+ * Sync wrapper that returns a placeholder and generates async.
+ * For backward compatibility with existing sync callers.
+ */
+let qrCache = new Map<string, string>();
+
+function generateQRAsync(data: string): string {
+  // Return cached version if available
+  if (qrCache.has(data)) {
+    return qrCache.get(data)!;
+  }
+
+  // Generate async and cache
+  generateQRDataUrlAsync(data).then(url => {
+    qrCache.set(data, url);
+  });
+
+  // Return a simple fallback while generating
+  return generateFallbackQR(data);
+}
+
+/**
+ * Simple canvas fallback for immediate display while real QR generates.
+ */
+function generateFallbackQR(data: string): string {
+  const canvas = document.createElement('canvas');
+  const size = 256;
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d')!;
+
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, size, size);
+
+  ctx.fillStyle = '#333333';
+  ctx.font = '14px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('Generating QR...', size / 2, size / 2);
+
+  return canvas.toDataURL('image/png');
 }
 
 /**
@@ -51,103 +117,6 @@ export function parseQRCode(text: string): { action: string; pubkey: string; nam
     }
     return null;
   }
-}
-
-// ============================================
-// Lightweight QR Code Generator (Canvas-based)
-// Based on QR code spec — generates simple QR codes
-// ============================================
-
-/**
- * Generate a QR code on a canvas and return as data URL.
- * Uses a simple encoding for short URLs (alphanumeric mode).
- */
-function generateQRCanvas(data: string): string {
-  // Use a simple grid-based visual encoding
-  // For production, this creates a scannable pattern
-  const canvas = document.createElement('canvas');
-  const size = 256;
-  canvas.width = size;
-  canvas.height = size;
-  const ctx = canvas.getContext('2d')!;
-
-  // White background
-  ctx.fillStyle = '#ffffff';
-  ctx.fillRect(0, 0, size, size);
-
-  // Generate bit pattern from data
-  const bits = dataToBits(data);
-  const moduleCount = Math.ceil(Math.sqrt(bits.length)) + 8; // Extra for finder patterns
-  const moduleSize = Math.floor(size / (moduleCount + 2));
-  const offset = Math.floor((size - moduleCount * moduleSize) / 2);
-
-  ctx.fillStyle = '#000000';
-
-  // Draw finder patterns (3 corners)
-  drawFinderPattern(ctx, offset, offset, moduleSize);
-  drawFinderPattern(ctx, offset + (moduleCount - 7) * moduleSize, offset, moduleSize);
-  drawFinderPattern(ctx, offset, offset + (moduleCount - 7) * moduleSize, moduleSize);
-
-  // Draw data modules
-  let bitIndex = 0;
-  for (let row = 0; row < moduleCount; row++) {
-    for (let col = 0; col < moduleCount; col++) {
-      // Skip finder pattern areas
-      if (isFinderArea(row, col, moduleCount)) continue;
-
-      if (bitIndex < bits.length && bits[bitIndex]) {
-        ctx.fillRect(
-          offset + col * moduleSize,
-          offset + row * moduleSize,
-          moduleSize,
-          moduleSize
-        );
-      }
-      bitIndex++;
-    }
-  }
-
-  // Draw the URL as text below (fallback for manual entry)
-  ctx.fillStyle = '#666666';
-  ctx.font = '8px monospace';
-  ctx.textAlign = 'center';
-  const shortData = data.length > 50 ? data.slice(0, 47) + '...' : data;
-  ctx.fillText(shortData, size / 2, size - 4);
-
-  return canvas.toDataURL('image/png');
-}
-
-function dataToBits(data: string): boolean[] {
-  const bits: boolean[] = [];
-  for (let i = 0; i < data.length; i++) {
-    const charCode = data.charCodeAt(i);
-    for (let bit = 7; bit >= 0; bit--) {
-      bits.push(((charCode >> bit) & 1) === 1);
-    }
-  }
-  return bits;
-}
-
-function drawFinderPattern(ctx: CanvasRenderingContext2D, x: number, y: number, moduleSize: number): void {
-  // Outer border (7x7)
-  ctx.fillStyle = '#000000';
-  ctx.fillRect(x, y, 7 * moduleSize, 7 * moduleSize);
-  // Inner white (5x5)
-  ctx.fillStyle = '#ffffff';
-  ctx.fillRect(x + moduleSize, y + moduleSize, 5 * moduleSize, 5 * moduleSize);
-  // Center (3x3)
-  ctx.fillStyle = '#000000';
-  ctx.fillRect(x + 2 * moduleSize, y + 2 * moduleSize, 3 * moduleSize, 3 * moduleSize);
-}
-
-function isFinderArea(row: number, col: number, moduleCount: number): boolean {
-  // Top-left
-  if (row < 8 && col < 8) return true;
-  // Top-right
-  if (row < 8 && col >= moduleCount - 8) return true;
-  // Bottom-left
-  if (row >= moduleCount - 8 && col < 8) return true;
-  return false;
 }
 
 // ============================================

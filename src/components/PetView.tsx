@@ -9,6 +9,7 @@ import { applyAction, getOverallHealth, getSuggestion, isCritical } from '../eng
 import { evaluateBehavior, getReactionEmote } from '../engine/BehaviorTree';
 import { savePetState } from '../nostr/petStorage';
 import { getInscriptionPreviewUrl } from '../avatar/OrdinalRenderer';
+import { PetRosterBar } from './PetRosterBar';
 import type { PetNeeds } from '../types';
 
 const needsConfig: { key: keyof PetNeeds; label: string; emoji: string; color: string }[] = [
@@ -92,7 +93,11 @@ export function PetView() {
   const xpPercent = Math.round((pet.xp / xpNeeded) * 100);
 
   return (
-    <div className="p-4 max-w-lg mx-auto">
+    <div className="max-w-lg mx-auto">
+      {/* Multi-Pet Roster Bar */}
+      <PetRosterBar />
+
+      <div className="p-4">
       {/* Pet Display */}
       <div className="bg-[#1a1a2e] rounded-2xl p-6 mb-4 border border-gray-800 relative overflow-hidden">
         {/* Background gradient based on elemental type */}
@@ -250,10 +255,11 @@ export function PetView() {
       {/* AR Mode Button */}
       <button
         onClick={() => setView('ar')}
-        className="w-full bg-gradient-to-r from-pink-500 to-purple-500 text-white font-semibold py-3 rounded-xl hover:from-pink-600 hover:to-purple-600 transition-all active:scale-98"
+        className="w-full bg-gradient-to-r from-pink-500 to-purple-500 text-white font-semibold py-3 rounded-xl hover:from-pink-600 hover:to-purple-600 transition-all active:scale-98 mt-4"
       >
         📸 AR Mode — See {pet.name} in the Real World!
       </button>
+      </div>{/* end p-4 wrapper */}
     </div>
   );
 }

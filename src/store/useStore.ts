@@ -3,7 +3,7 @@
 // ============================================
 
 import { create } from 'zustand';
-import type { Pet, WalletState, OrdinalInscription, HomeState, BattleState, AppView } from '../types';
+import type { Pet, PetRoster, WalletState, OrdinalInscription, HomeState, BattleState, AppView } from '../types';
 import type { NostrIdentity } from '../nostr/identity';
 import type { BehaviorAction } from '../engine/BehaviorTree';
 
@@ -16,11 +16,19 @@ interface AppState {
   identity: NostrIdentity | null;
   setIdentity: (identity: NostrIdentity | null) => void;
 
-  // --- Pet ---
+  // --- Pet (active pet — backward compatible) ---
   pet: Pet | null;
   setPet: (pet: Pet | null) => void;
   updatePet: (updates: Partial<Pet>) => void;
   updatePetFn: (fn: (prev: Pet) => Pet) => void;
+
+  // --- Multi-Pet Roster ---
+  roster: PetRoster;
+  setRoster: (roster: PetRoster) => void;
+  addPet: (pet: Pet) => void;
+  removePet: (petId: string) => void;
+  switchActivePet: (petId: string) => void;
+  getMaxPetSlots: () => number;
 
   // --- Wallet ---
   wallet: WalletState;
@@ -55,17 +63,76 @@ export const useStore = create<AppState>((set) => ({
   identity: null,
   setIdentity: (identity) => set({ identity }),
 
-  // --- Pet ---
+  // --- Pet (active pet) ---
   pet: null,
-  setPet: (pet) => set({ pet }),
+  setPet: (pet) => set((state) => {
+    // Also update the pet in the roster
+    if (pet && state.roster.pets.length > 0) {
+      const updatedPets = state.roster.pets.map(p => p.id === pet.id ? pet : p);
+      // If pet isn't in roster yet, add it
+      if (!updatedPets.find(p => p.id === pet.id)) {
+        updatedPets.push(pet);
+      }
+      return { pet, roster: { ...state.roster, pets: updatedPets, activePetId: pet.id } };
+    }
+    return { pet };
+  }),
   updatePet: (updates) =>
-    set((state) => ({
-      pet: state.pet ? { ...state.pet, ...updates } : null,
-    })),
+    set((state) => {
+      const updated = state.pet ? { ...state.pet, ...updates } : null;
+      if (updated && state.roster.pets.length > 0) {
+        const updatedPets = state.roster.pets.map(p => p.id === updated.id ? updated : p);
+        return { pet: updated, roster: { ...state.roster, pets: updatedPets } };
+      }
+      return { pet: updated };
+    }),
   updatePetFn: (fn) =>
-    set((state) => ({
-      pet: state.pet ? fn(state.pet) : null,
-    })),
+    set((state) => {
+      const updated = state.pet ? fn(state.pet) : null;
+      if (updated && state.roster.pets.length > 0) {
+        const updatedPets = state.roster.pets.map(p => p.id === updated.id ? updated : p);
+        return { pet: updated, roster: { ...state.roster, pets: updatedPets } };
+      }
+      return { pet: updated };
+    }),
+
+  // --- Multi-Pet Roster ---
+  roster: { pets: [], activePetId: '', maxSlots: 1 },
+  setRoster: (roster) => set({ roster }),
+  addPet: (pet) =>
+    set((state) => {
+      const maxSlots = Math.max(1, state.wallet.inscriptions.length);
+      if (state.roster.pets.length >= maxSlots) return state; // At capacity
+      const newPets = [...state.roster.pets, pet];
+      return {
+        roster: { ...state.roster, pets: newPets, maxSlots },
+        // If no active pet, make this one active
+        pet: state.pet || pet,
+      };
+    }),
+  removePet: (petId) =>
+    set((state) => {
+      const newPets = state.roster.pets.filter(p => p.id !== petId);
+      const wasActive = state.roster.activePetId === petId;
+      const newActivePetId = wasActive ? (newPets[0]?.id || '') : state.roster.activePetId;
+      const newActivePet = wasActive ? (newPets[0] || null) : state.pet;
+      return {
+        roster: { ...state.roster, pets: newPets, activePetId: newActivePetId },
+        pet: newActivePet,
+      };
+    }),
+  switchActivePet: (petId) =>
+    set((state) => {
+      const targetPet = state.roster.pets.find(p => p.id === petId);
+      if (!targetPet) return state;
+      return {
+        pet: targetPet,
+        roster: { ...state.roster, activePetId: petId },
+      };
+    }),
+  getMaxPetSlots: (): number => {
+    return Math.max(1, (useStore as any).getState().wallet.inscriptions.length);
+  },
 
   // --- Wallet ---
   wallet: {

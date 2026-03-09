@@ -7,7 +7,7 @@ import { useStore } from '../store/useStore';
 import { getStageEmoji } from '../engine/PetStateMachine';
 import { fetchLeaderboard, type LeaderboardEntry } from '../nostr/leaderboard';
 import { loadPetByPubkey, signGuestbook, npubToHex, type VisitedPet } from '../nostr/petVisitor';
-import { generateVisitQRDataUrl, parseQRCode, startQRScanner, isQRScanSupported } from '../social/QRCodeManager';
+import { generateQRDataUrlAsync, parseQRCode, startQRScanner, isQRScanSupported } from '../social/QRCodeManager';
 
 type SocialTab = 'leaderboard' | 'visit' | 'qr';
 
@@ -406,11 +406,14 @@ function QRMeetTab() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const scannerRef = useRef<{ stop: () => void } | null>(null);
 
-  // Generate QR code when showing
+  // Generate QR code when showing (async — real scannable QR)
   useEffect(() => {
     if (mode === 'show' && identity) {
-      const dataUrl = generateVisitQRDataUrl(identity.pubkey);
-      setQrDataUrl(dataUrl);
+      const url = `${window.location.origin}${window.location.pathname}`;
+      const deepLink = `${url}?rp1_action=visit&pubkey=${identity.pubkey}`;
+      generateQRDataUrlAsync(deepLink).then(dataUrl => {
+        if (dataUrl) setQrDataUrl(dataUrl);
+      });
     }
   }, [mode, identity]);
 

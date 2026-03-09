@@ -6,10 +6,11 @@
 // On load: check both, use whichever is newer.
 // ============================================
 
-import type { Pet, HomeState } from '../types';
+import type { Pet, PetRoster, HomeState } from '../types';
 
 const KEYS = {
   PET: 'fabricpet_pet_state',
+  ROSTER: 'fabricpet_roster',
   HOME: 'fabricpet_home_state',
   LAST_SAVED: 'fabricpet_last_saved',
 } as const;
@@ -70,6 +71,51 @@ export function loadLocalHome(): { home: HomeState; timestamp: number } | null {
     const stored: StoredData<HomeState> = JSON.parse(raw);
     if (!stored.data) return null;
     return { home: stored.data, timestamp: stored.timestamp };
+  } catch {
+    return null;
+  }
+}
+
+/** Save roster to localStorage. */
+export function saveLocalRoster(roster: PetRoster): void {
+  try {
+    const stored: StoredData<PetRoster> = {
+      data: roster,
+      timestamp: Date.now(),
+      version: 1,
+    };
+    localStorage.setItem(KEYS.ROSTER, JSON.stringify(stored));
+  } catch (e) {
+    console.warn('[LocalStorage] Failed to save roster:', e);
+  }
+}
+
+/** Load roster from localStorage. Migrates single-pet to roster if needed. */
+export function loadLocalRoster(): { roster: PetRoster; timestamp: number } | null {
+  try {
+    // Try loading roster first
+    const raw = localStorage.getItem(KEYS.ROSTER);
+    if (raw) {
+      const stored: StoredData<PetRoster> = JSON.parse(raw);
+      if (stored.data && stored.data.pets && stored.data.pets.length > 0) {
+        return { roster: stored.data, timestamp: stored.timestamp };
+      }
+    }
+
+    // Migration: if no roster but single pet exists, create roster from it
+    const singlePet = loadLocalPet();
+    if (singlePet) {
+      const roster: PetRoster = {
+        pets: [singlePet.pet],
+        activePetId: singlePet.pet.id,
+        maxSlots: 1,
+      };
+      console.log('[LocalStorage] Migrated single pet to roster');
+      saveLocalRoster(roster);
+      return { roster, timestamp: singlePet.timestamp };
+    }
+
+    return null;
   } catch {
     return null;
   }

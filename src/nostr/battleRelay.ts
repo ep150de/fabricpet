@@ -74,20 +74,34 @@ async function signEvent(
  */
 async function publishToRelays(signedEvent: any): Promise<number> {
   const pool = getPool();
-  const relays = getRelays();
+  // Include relay.nostr.band for better indexing/discovery
+  const relays = [
+    'wss://relay.nostr.band',
+    ...getRelays().filter(r => r !== 'wss://relay.nostr.band'),
+  ];
   let successCount = 0;
 
   try {
-    const results = await Promise.allSettled(
-      pool.publish(relays, signedEvent)
+    // Wrap each publish in a timeout to prevent hanging
+    const publishPromises = pool.publish(relays, signedEvent).map((p, i) =>
+      Promise.race([
+        p.then(() => ({ relay: relays[i], ok: true })),
+        new Promise<{ relay: string; ok: false }>((resolve) =>
+          setTimeout(() => resolve({ relay: relays[i], ok: false }), 8000)
+        ),
+      ])
     );
 
-    for (let i = 0; i < results.length; i++) {
-      if (results[i].status === 'fulfilled') {
+    const results = await Promise.allSettled(publishPromises);
+
+    for (const result of results) {
+      if (result.status === 'fulfilled' && result.value.ok) {
         successCount++;
-        console.log(`[BattleRelay] ✅ Published to ${relays[i]}`);
+        console.log(`[BattleRelay] ✅ Published to ${result.value.relay}`);
+      } else if (result.status === 'fulfilled') {
+        console.warn(`[BattleRelay] ⏱️ Timeout on ${result.value.relay}`);
       } else {
-        console.warn(`[BattleRelay] ❌ Failed on ${relays[i]}:`, (results[i] as PromiseRejectedResult).reason);
+        console.warn(`[BattleRelay] ❌ Failed:`, (result as PromiseRejectedResult).reason);
       }
     }
   } catch (e) {

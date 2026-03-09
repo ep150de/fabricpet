@@ -49,6 +49,14 @@ export interface Pet {
   lastInteraction: number;
 }
 
+// --- Multi-Pet Roster ---
+
+export interface PetRoster {
+  pets: Pet[];
+  activePetId: string;
+  maxSlots: number;  // Determined by # of inscriptions (min 1)
+}
+
 // --- Ordinal Types ---
 
 export interface OrdinalTrait {
