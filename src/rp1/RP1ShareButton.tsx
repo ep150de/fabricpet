@@ -9,8 +9,9 @@
 import { useState } from 'react';
 import { useStore } from '../store/useStore';
 import { generateSceneJSONString } from './SceneJSONGenerator';
+import { pushSceneJSON, copySceneJSONToClipboard } from './MVMFBridge';
 
-type ShareMode = 'idle' | 'generating' | 'ready';
+type ShareMode = 'idle' | 'generating' | 'ready' | 'sharing' | 'shared' | 'error';
 
 export function RP1ShareButton({ className = '' }: { className?: string }) {
   const { pet, wallet } = useStore();
@@ -19,23 +20,53 @@ export function RP1ShareButton({ className = '' }: { className?: string }) {
   const [sceneJSON, setSceneJSON] = useState<string>('');
   const [copied, setCopied] = useState(false);
   const [showPanel, setShowPanel] = useState(false);
+  const [shareError, setShareError] = useState<string | null>(null);
+  const [shareSuccess, setShareSuccess] = useState<boolean | null>(null);
 
   if (!pet) return null;
 
-  const handleGenerate = () => {
-    setMode('generating');
+   const handleGenerate = async () => {
+     setMode('generating');
+     setShareError(null);
+     setShareSuccess(null);
 
-    // Generate Scene Assembler JSON
-    const json = generateSceneJSONString(pet, inscriptions, {
-      sceneSize: 20,
-      petPosition: [0, 0.5, 0],
-      includeImages: true,
-    });
+     // Generate Scene Assembler JSON
+     const json = generateSceneJSONString(pet, inscriptions, {
+       sceneSize: 20,
+       petPosition: [0, 0.5, 0],
+       includeImages: true,
+     });
 
-    setSceneJSON(json);
-    setMode('ready');
-    setShowPanel(true);
-  };
+     setSceneJSON(json);
+     
+     // Try to push to MSF service first
+     setMode('sharing');
+     try {
+       const success = await pushSceneJSON(JSON.parse(json));
+       if (success) {
+         setMode('shared');
+         setShareSuccess(true);
+         setTimeout(() => {
+           setMode('ready');
+           setShareSuccess(null);
+         }, 3000);
+       } else {
+         // Fallback to manual copy
+         setMode('ready');
+         setShareError('MSF service unavailable - using clipboard fallback');
+         await copySceneJSONToClipboard(JSON.parse(json));
+         setCopied(true);
+         setTimeout(() => setCopied(false), 2000);
+       }
+     } catch (error) {
+       // Fallback to manual copy on error
+       setMode('ready');
+       setShareError('Failed to connect to RP1 service - using clipboard fallback');
+       await copySceneJSONToClipboard(JSON.parse(json));
+       setCopied(true);
+       setTimeout(() => setCopied(false), 2000);
+     }
+   };
 
   const handleCopyJSON = async () => {
     try {
@@ -120,37 +151,52 @@ export function RP1ShareButton({ className = '' }: { className?: string }) {
             </pre>
           </div>
 
-          {/* Action Buttons */}
-          <div className="p-3 space-y-2">
-            <button
-              onClick={handleCopyJSON}
-              className={`w-full font-semibold py-2.5 rounded-lg transition-all text-sm ${
-                copied
-                  ? 'bg-green-500/20 text-green-300 border border-green-500/50'
-                  : 'bg-fuchsia-500/20 text-fuchsia-300 border border-fuchsia-500/50 hover:bg-fuchsia-500/30'
-              }`}
-            >
-              {copied ? '✅ Copied to Clipboard!' : '📋 Copy Scene JSON'}
-            </button>
+       {/* Action Buttons */}
+       <div className="p-3 space-y-2">
+         {shareSuccess === true && (
+           <div className="w-full bg-green-500/20 text-green-300 border border-green-500/50 font-semibold py-2 rounded-lg">
+             ✅ Shared to RP1! Your pet is now visible in the metaverse.
+           </div>
+         )}
+         {shareError && (
+           <div className="w-full bg-red-500/20 text-red-300 border border-red-500/50 font-semibold py-2 rounded-lg">
+             ⚠️ {shareError}
+           </div>
+         )}
+         {mode === 'sharing' && (
+           <div className="w-full bg-blue-500/20 text-blue-300 border border-blue-500/50 font-semibold py-2 rounded-lg">
+             📡 Sharing to RP1...
+           </div>
+         )}
+         <button
+           onClick={handleCopyJSON}
+           className={`w-full font-semibold py-2.5 rounded-lg transition-all text-sm ${
+             copied
+               ? 'bg-green-500/20 text-green-300 border border-green-500/50'
+               : 'bg-fuchsia-500/20 text-fuchsia-300 border border-fuchsia-500/50 hover:bg-fuchsia-500/30'
+           }`}
+         >
+           {copied ? '✅ Copied to Clipboard!' : '📋 Copy Scene JSON'}
+         </button>
 
-            <button
-              onClick={handleDownloadJSON}
-              className="w-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/50 hover:bg-indigo-500/30 font-semibold py-2.5 rounded-lg transition-all text-sm"
-            >
-              💾 Download .json File
-            </button>
+         <button
+           onClick={handleDownloadJSON}
+           className="w-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/50 hover:bg-indigo-500/30 font-semibold py-2.5 rounded-lg transition-all text-sm"
+         >
+           💾 Download .json File
+         </button>
 
-            <button
-              onClick={handleOpenRP1}
-              className="w-full bg-violet-500/20 text-violet-300 border border-violet-500/50 hover:bg-violet-500/30 font-semibold py-2.5 rounded-lg transition-all text-sm"
-            >
-              🚀 Open RP1 Browser
-            </button>
+         <button
+           onClick={handleOpenRP1}
+           className="w-full bg-violet-500/20 text-violet-300 border border-violet-500/50 hover:bg-violet-500/30 font-semibold py-2.5 rounded-lg transition-all text-sm"
+         >
+           🚀 Open RP1 Browser
+         </button>
 
-            <div className="text-xs text-gray-600 text-center pt-1">
-              Works in RP1 Browser, Xverse Browser, Meta Quest Browser
-            </div>
-          </div>
+         <div className="text-xs text-gray-600 text-center pt-1">
+           Works in RP1 Browser, Xverse Browser, Meta Quest Browser
+         </div>
+       </div>
         </div>
       )}
     </div>

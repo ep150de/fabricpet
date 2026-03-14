@@ -10,6 +10,9 @@ import type { ChatMessage } from './LLMProvider';
 import { chatCompletionStream, checkLLMHealth } from './LLMProvider';
 import { generateSystemPrompt, generateGreeting } from './PersonalitySystem';
 
+// Re-export for use in other components
+export { checkLLMHealth };
+
 export interface ChatEntry {
   id: string;
   role: 'user' | 'assistant';
