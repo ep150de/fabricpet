@@ -322,18 +322,21 @@ export function ARView() {
          return;
        }
 
-       // Handle WebGL context lost/restored
-       const handleContextLost = (e: Event) => {
-         e.preventDefault();
-         console.warn('[AR] WebGL context lost');
-         setError('WebGL context lost — GPU may be overloaded. Trying to restore...');
-       };
+        // Handle WebGL context lost/restored
+        const handleContextLost = (e: Event) => {
+          e.preventDefault();
+          console.warn('[AR] WebGL context lost');
+          setError('WebGL context lost — GPU may be overloaded. Trying to restore...');
+          cancelled = true;
+        };
 
-       const handleContextRestored = () => {
-         console.log('[AR] WebGL context restored');
-         setError(null);
-         // The renderer will automatically restore GL objects
-       };
+        const handleContextRestored = () => {
+          console.log('[AR] WebGL context restored');
+          setError(null);
+          cancelled = false;
+          // Trigger re-initialization
+          loopAnimId = requestAnimationFrame(initThreeJS);
+        };
 
        canvas.addEventListener('webglcontextlost', handleContextLost);
        canvas.addEventListener('webglcontextrestored', handleContextRestored);

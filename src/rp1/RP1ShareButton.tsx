@@ -9,7 +9,7 @@
 import { useState } from 'react';
 import { useStore } from '../store/useStore';
 import { generateSceneJSONString } from './SceneJSONGenerator';
-import { pushSceneJSON, copySceneJSONToClipboard } from './MVMFBridge';
+import { pushSceneJSON, copySceneJSONToClipboard, checkMSFHealth } from './MVMFBridge';
 
 type ShareMode = 'idle' | 'generating' | 'ready' | 'sharing' | 'shared' | 'error';
 
@@ -25,48 +25,54 @@ export function RP1ShareButton({ className = '' }: { className?: string }) {
 
   if (!pet) return null;
 
-   const handleGenerate = async () => {
-     setMode('generating');
-     setShareError(null);
-     setShareSuccess(null);
+    const handleGenerate = async () => {
+      setMode('generating');
+      setShareError(null);
+      setShareSuccess(null);
 
-     // Generate Scene Assembler JSON
-     const json = generateSceneJSONString(pet, inscriptions, {
-       sceneSize: 20,
-       petPosition: [0, 0.5, 0],
-       includeImages: true,
-     });
+      // Generate Scene Assembler JSON
+      const json = generateSceneJSONString(pet, inscriptions, {
+        sceneSize: 20,
+        petPosition: [0, 0.5, 0],
+        includeImages: true,
+      });
 
-     setSceneJSON(json);
-     
-     // Try to push to MSF service first
-     setMode('sharing');
-     try {
-       const success = await pushSceneJSON(JSON.parse(json));
-       if (success) {
-         setMode('shared');
-         setShareSuccess(true);
-         setTimeout(() => {
-           setMode('ready');
-           setShareSuccess(null);
-         }, 3000);
-       } else {
-         // Fallback to manual copy
-         setMode('ready');
-         setShareError('MSF service unavailable - using clipboard fallback');
-         await copySceneJSONToClipboard(JSON.parse(json));
-         setCopied(true);
-         setTimeout(() => setCopied(false), 2000);
-       }
-     } catch (error) {
-       // Fallback to manual copy on error
-       setMode('ready');
-       setShareError('Failed to connect to RP1 service - using clipboard fallback');
-       await copySceneJSONToClipboard(JSON.parse(json));
-       setCopied(true);
-       setTimeout(() => setCopied(false), 2000);
-     }
-   };
+      setSceneJSON(json);
+      
+      // Try to push to MSF service first
+      setMode('sharing');
+      try {
+        // First check if MSF service is healthy
+        const msfHealthy = await checkMSFHealth();
+        if (!msfHealthy) {
+          throw new Error('MSF service health check failed');
+        }
+        
+        const success = await pushSceneJSON(JSON.parse(json));
+        if (success) {
+          setMode('shared');
+          setShareSuccess(true);
+          setTimeout(() => {
+            setMode('ready');
+            setShareSuccess(null);
+          }, 3000);
+        } else {
+          // Fallback to manual copy
+          setMode('ready');
+          setShareError('MSF service endpoint not available - using clipboard fallback');
+          await copySceneJSONToClipboard(JSON.parse(json));
+          setCopied(true);
+          setTimeout(() => setCopied(false), 2000);
+        }
+      } catch (error: any) {
+        // Fallback to manual copy on error
+        setMode('ready');
+        setShareError(`RP1 service error: ${error.message || 'Connection failed'} - using clipboard fallback`);
+        await copySceneJSONToClipboard(JSON.parse(json));
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      }
+    };
 
   const handleCopyJSON = async () => {
     try {
