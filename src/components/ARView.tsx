@@ -15,6 +15,10 @@ import {
 } from '../llm/ChatEngine';
 import type { ChatEntry } from '../llm/ChatEngine';
 import { fetchInscriptionContent, categorizeContentType, load3DModelFromContent } from '../avatar/OrdinalRenderer';
+import { createBattle, executeTurn, getBattleSummary } from '../battle/BattleEngine';
+import { TYPE_EFFECTIVENESS } from '../utils/constants';
+import { getMove } from '../engine/MoveDatabase';
+import type { BattleState, BattleStats, ElementalType, Move } from '../types';
 
 type ARMode = 'camera' | 'webxr';
 
@@ -32,6 +36,92 @@ export function ARView() {
   const [cameraSupported, setCameraSupported] = useState(true);
   const [facingMode, setFacingMode] = useState<'environment' | 'user'>('environment');
   const [cameraInfo, setCameraInfo] = useState<string>('');
+  
+  // Battle state
+  const [battleInProgress, setBattleInProgress] = useState(false);
+  const [battleState, setBattleState] = useState<BattleState | null>(null);
+  const [battleLog, setBattleLog] = useState<string[]>([]);
+
+  // Battle handling
+  const handleStartBattle = useCallback(async () => {
+    if (!pet) return;
+    
+    setBattleInProgress(true);
+    setBattleLog(['Starting battle...']);
+    
+    try {
+      // Create a mock opponent for demonstration
+      // In a real app, this would come from another player or NPC
+      const opponentPet = {
+        name: 'Wild Pet',
+        stats: {
+          hp: 50,
+          maxHp: 50,
+          atk: 10,
+          def: 8,
+          spd: 9,
+          special: 12
+        },
+        moves: ['tackle', 'growl'],
+        elementalType: 'normal' as ElementalType
+      };
+      
+      const playerPet = {
+        name: pet.name,
+        stats: {
+          hp: pet.battleStats.hp,
+          maxHp: pet.battleStats.maxHp,
+          atk: pet.battleStats.atk,
+          def: pet.battleStats.def,
+          spd: pet.battleStats.spd,
+          special: pet.battleStats.special
+        },
+        moves: [...pet.moves], // Use pet's actual moves
+        elementalType: pet.elementalType
+      };
+      
+      // Create battle
+      const battle = createBattle(
+        'player', 
+        'opponent', 
+        playerPet, 
+        opponentPet
+      );
+      
+      setBattleState(battle);
+      setBattleLog(prev => [...prev, 'Battle started!']);
+      
+      // Execute a few turns for demonstration
+      for (let i = 0; i < 3 && battle.status === 'active'; i++) {
+        // Use first available move or default to 'tackle'
+        const playerMove = pet.moves.length > 0 ? pet.moves[0] : 'tackle';
+        const turnResult = executeTurn(battle, playerMove, 'tackle'); // Player uses move, opponent uses tackle
+        setBattleState(prev => prev ? { ...prev, ...turnResult } : turnResult);
+        setBattleLog(prev => [...prev, `Turn ${i+1}: Player used ${playerMove}`]);
+        
+        if (turnResult.winner) break;
+        
+        // Opponent turn - swap the order for executeTurn
+        const opponentMove = opponentPet.moves.length > 0 ? opponentPet.moves[0] : 'tackle';
+        const opponentTurn = executeTurn(turnResult, opponentMove, 'tackle'); // Opponent uses move, player uses tackle
+        setBattleState(prev => prev ? { ...prev, ...opponentTurn } : opponentTurn);
+        setBattleLog(prev => [...prev, `Turn ${i+1}: Opponent used ${opponentMove}`]);
+        
+        if (opponentTurn.winner) break;
+      }
+      
+      // Final update
+      const finalBattle = battleState || battle;
+      setBattleState(finalBattle);
+      setBattleLog(prev => [...prev, getBattleSummary(finalBattle)]);
+      
+    } catch (error: any) {
+      console.error('[AR] Battle error:', error);
+      setBattleLog(prev => [...prev, `Battle error: ${error.message || 'Unknown error'}`]);
+    } finally {
+      setBattleInProgress(false);
+    }
+  }, [pet, battleState]);
 
   // Pre-flight camera support check
   useEffect(() => {
@@ -50,35 +140,22 @@ export function ARView() {
     setCameraSupported(true);
   }, []);
 
-    // Check WebXR support with better cross-browser compatibility
+    // Check WebXR support with better cross-browser compatibility and error handling
     useEffect(() => {
-      let isSupported = false;
-      let checked = false;
-      
-      // Standard check
+      // Standard check with proper error handling
       if ('xr' in navigator) {
-        (navigator as any).xr?.isSessionSupported?.('immersive-ar').then((supported: boolean) => {
-          checked = true;
-          isSupported = supported;
-          setArSupported(supported);
-        }).catch((error: any) => {
-          checked = true;
-          setArSupported(false);
-        });
+        (navigator as any).xr.isSessionSupported('immersive-ar')
+          .then((supported: boolean) => {
+            setArSupported(supported);
+          })
+          .catch((error: any) => {
+            console.warn('[AR] WebXR support check failed:', error);
+            setArSupported(false);
+          });
+      } else {
+        // Navigator doesn't have xr property at all
+        setArSupported(false);
       }
-      
-      // Additional check for browsers that might not have xr in navigator but still support WebXR
-      // Add timeout to prevent hanging in case the promise never resolves
-      const timeout = setTimeout(() => {
-        if (!checked) {
-          // If we haven't gotten a response from the promise yet, assume not supported to avoid hanging UI
-          setArSupported(false);
-        }
-      }, 2000);
-      
-      return () => {
-        clearTimeout(timeout);
-      };
     }, []);
 
    // WebXR immersive-ar session — works on Meta Quest, Meta glasses, and WebXR-capable mobile browsers
@@ -603,42 +680,100 @@ export function ARView() {
          materials.push(shadowMat);
        }
 
-       const animate = () => {
-         if (cancelled) return;
-         loopAnimId = requestAnimationFrame(animate);
-         const t = Date.now() * 0.001;
+        // Interaction state
+        let isInteracting = false;
+        let lastInteractionTime = 0;
+        const interactionCooldown = 1000; // 1 second cooldown between interactions
 
-         // Animate pet mesh if it exists
-         if (petMesh) {
-           // Bounce animation
-           petMesh.position.y = 0.5 + Math.abs(Math.sin(t * 2)) * 0.15;
-           
-           // Squash/stretch
-           const squash = 1 + Math.sin(t * 4) * 0.05;
-           petMesh.scale.set(1 / squash, squash, 1 / squash);
-         }
+        // Handle touch/click interactions
+        const handleInteraction = (eventType: string) => {
+          const now = Date.now();
+          if (now - lastInteractionTime < interactionCooldown) return;
+          lastInteractionTime = now;
+          
+          isInteracting = true;
+          
+          // Trigger pet reaction based on interaction type
+          if (petMesh) {
+            // Scale up briefly for tap/click
+            petMesh.scale.set(1.2, 1.2, 1.2);
+            setTimeout(() => {
+              petMesh.scale.set(1, 1, 1);
+            }, 200);
+          }
+          
+          // Reset interaction flag after a short delay
+          setTimeout(() => {
+            isInteracting = false;
+          }, 500);
+        };
 
-         // Animate eyes if they exist (only for default sphere)
-         const leftEye = scene.getObjectByName('leftEye') as THREE.Mesh | undefined;
-         const rightEye = scene.getObjectByName('rightEye') as THREE.Mesh | undefined;
-         const lh = scene.getObjectByName('lh') as THREE.Mesh | undefined;
-         const rh = scene.getObjectByName('rh') as THREE.Mesh | undefined;
-         
-         if (leftEye && rightEye && lh && rh) {
-           leftEye.position.y = petMesh.position.y + 0.1;
-           rightEye.position.y = petMesh.position.y + 0.1;
-           lh.position.y = petMesh.position.y + 0.13;
-           rh.position.y = petMesh.position.y + 0.13;
-         }
+        // Add event listeners for interaction
+        if (canvas) {
+          canvas.addEventListener('pointerdown', (e) => {
+            e.preventDefault();
+            handleInteraction('tap');
+          });
+          
+          canvas.addEventListener('pointerup', (e) => {
+            e.preventDefault();
+          });
+          
+          // Add double tap detection
+          let lastTap = 0;
+          canvas.addEventListener('pointerdown', (e) => {
+            const now = Date.now();
+            if (now - lastTap < 300) { // Double tap within 300ms
+              handleInteraction('doubleTap');
+              e.preventDefault();
+            }
+            lastTap = now;
+          });
+        }
 
-         // Animate shadow if it exists
-         const shadow = scene.getObjectByName('shadow') as THREE.Mesh | undefined;
-         if (shadow) {
-           shadow.scale.setScalar(1 - Math.abs(Math.sin(t * 2)) * 0.2);
-         }
+        const animate = () => {
+          if (cancelled) return;
+          loopAnimId = requestAnimationFrame(animate);
+          const t = Date.now() * 0.001;
 
-         if (renderer) renderer.render(scene, cam);
-       };
+          // Animate pet mesh if it exists
+          if (petMesh) {
+            // Bounce animation
+            petMesh.position.y = 0.5 + Math.abs(Math.sin(t * 2)) * 0.15;
+            
+            // Add interaction-based scaling
+            if (isInteracting) {
+              // Pulse effect when interacting
+              const pulseScale = 1 + Math.sin(t * 10) * 0.1;
+              petMesh.scale.set(pulseScale, pulseScale, pulseScale);
+            } else {
+              // Normal squash/stretch when not interacting
+              const squash = 1 + Math.sin(t * 4) * 0.05;
+              petMesh.scale.set(1 / squash, squash, 1 / squash);
+            }
+          }
+
+          // Animate eyes if they exist (only for default sphere)
+          const leftEye = scene.getObjectByName('leftEye') as THREE.Mesh | undefined;
+          const rightEye = scene.getObjectByName('rightEye') as THREE.Mesh | undefined;
+          const lh = scene.getObjectByName('lh') as THREE.Mesh | undefined;
+          const rh = scene.getObjectByName('rh') as THREE.Mesh | undefined;
+          
+          if (leftEye && rightEye && lh && rh) {
+            leftEye.position.y = petMesh.position.y + 0.1;
+            rightEye.position.y = petMesh.position.y + 0.1;
+            lh.position.y = petMesh.position.y + 0.13;
+            rh.position.y = petMesh.position.y + 0.13;
+          }
+
+          // Animate shadow if it exists
+          const shadow = scene.getObjectByName('shadow') as THREE.Mesh | undefined;
+          if (shadow) {
+            shadow.scale.setScalar(1 - Math.abs(Math.sin(t * 2)) * 0.2);
+          }
+
+          if (renderer) renderer.render(scene, cam);
+        };
        animate();
      };
 
@@ -762,57 +897,110 @@ export function ARView() {
        
 
 
-      {!cameraActive ? (
-        <div className="space-y-3">
-          <button
-            onClick={startCamera}
-            disabled={!cameraSupported}
-            className={`w-full font-semibold py-4 rounded-xl transition-all ${
-              cameraSupported
-                ? 'bg-gradient-to-r from-indigo-500 to-purple-500 text-white hover:from-indigo-600 hover:to-purple-600'
-                : 'bg-gray-800 text-gray-500 cursor-not-allowed'
-            }`}
-          >
-            {cameraSupported ? '📸 Start Camera AR' : '📸 Camera Not Available'}
-          </button>
+       {!cameraActive ? (
+         <div className="space-y-3">
+           <button
+             onClick={startCamera}
+             disabled={!cameraSupported}
+             className={`w-full font-semibold py-4 rounded-xl transition-all ${
+               cameraSupported
+                 ? 'bg-gradient-to-r from-indigo-500 to-purple-500 text-white hover:from-indigo-600 hover:to-purple-600'
+                 : 'bg-gray-800 text-gray-500 cursor-not-allowed'
+             }`}
+           >
+             {cameraSupported ? '📸 Start Camera AR' : '📸 Camera Not Available'}
+           </button>
 
-          {arSupported && !webxrActive && (
-            <button
-              onClick={startWebXR}
-              className="w-full bg-gradient-to-r from-cyan-500 to-teal-500 text-white font-semibold py-4 rounded-xl hover:from-cyan-600 hover:to-teal-600 transition-all active:scale-98"
-            >
-              🥽 WebXR Immersive AR (Quest / Glasses)
-            </button>
-          )}
+           {arSupported && !webxrActive && (
+             <button
+               onClick={startWebXR}
+               className="w-full bg-gradient-to-r from-cyan-500 to-teal-500 text-white font-semibold py-4 rounded-xl hover:from-cyan-600 hover:to-teal-600 transition-all active:scale-98"
+             >
+               🥽 WebXR Immersive AR (Quest / Glasses)
+             </button>
+           )}
 
-          {webxrActive && (
-            <div className="bg-gradient-to-r from-cyan-900/30 to-teal-900/30 rounded-xl p-4 border border-cyan-500/30 text-center">
-              <div className="text-4xl mb-2 animate-pulse">🥽</div>
-              <p className="text-sm text-cyan-300 font-semibold">WebXR Session Active!</p>
-              <p className="text-xs text-gray-400 mt-1">
-                {pet.name} is floating in your space. Look around!
-              </p>
-              <button
-                onClick={stopWebXR}
-                className="mt-3 bg-red-500/80 hover:bg-red-500 text-white text-sm font-bold px-4 py-2 rounded-lg transition-all"
-              >
-                ✕ End XR Session
-              </button>
-            </div>
-          )}
+           {webxrActive && (
+             <div className="bg-gradient-to-r from-cyan-900/30 to-teal-900/30 rounded-xl p-4 border border-cyan-500/30 text-center">
+               <div className="text-4xl mb-2 animate-pulse">🥽</div>
+               <p className="text-sm text-cyan-300 font-semibold">WebXR Session Active!</p>
+               <p className="text-xs text-gray-400 mt-1">
+                 {pet.name} is floating in your space. Look around!
+               </p>
+               <button
+                 onClick={stopWebXR}
+                 className="mt-3 bg-red-500/80 hover:bg-red-500 text-white text-sm font-bold px-4 py-2 rounded-lg transition-all"
+               >
+                 ✕ End XR Session
+               </button>
+             </div>
+           )}
 
-          <div className="bg-[#1a1a2e] rounded-xl p-4 border border-gray-800 text-center">
-            <div className="text-5xl mb-2">{getStageEmoji(pet.stage)}</div>
-            <p className="text-sm text-gray-400">
-              {pet.name} is ready to explore the real world!
-            </p>
-            <p className="text-xs text-gray-600 mt-1">
-              📸 Camera AR overlays your pet on the camera feed.
-              {arSupported ? ' 🥽 WebXR works on Meta Quest, Meta glasses, and XR browsers!' : ''}
-            </p>
-          </div>
-        </div>
-      ) : (
+           {/* Battle Button */}
+           <button
+             onClick={handleStartBattle}
+             disabled={battleInProgress}
+             className={`w-full font-semibold py-4 rounded-xl transition-all ${
+               battleInProgress
+                 ? 'bg-gray-800 text-gray-500 cursor-not-allowed'
+                 : 'bg-gradient-to-r from-red-500 to-yellow-500 text-white hover:from-red-600 hover:to-yellow-600'
+             }`}
+           >
+             {battleInProgress ? '⚔️ Battle in Progress' : '⚔️ Start Battle'}
+           </button>
+
+           {/* Battle Display */}
+           {battleInProgress && battleState && (
+             <div className="mt-3 p-3 bg-[#1a1a2e] rounded-xl border border-gray-800">
+               <div className="flex justify-between mb-2">
+                 <span className="text-sm font-medium text-gray-300">⚔️ Battle Active</span>
+                 <button
+                   onClick={() => {
+                     setBattleInProgress(false);
+                     setBattleState(null);
+                     setBattleLog([]);
+                   }}
+                   className="text-red-400 hover:text-red-300 text-xs"
+                 >
+                   ✕
+                 </button>
+               </div>
+               
+               {/* Battle Log - simplified */}
+               <div className="h-20 overflow-y-auto mb-2 text-xs">
+                 {battleLog.map((log, index) => (
+                   <div key={index} className="mb-1">
+                     <span className="text-gray-300">{log}</span>
+                   </div>
+                 ))}
+               </div>
+               
+               {/* Battle Stats - simplified */}
+               {battleState.pets && (
+                 <div className="mt-2">
+                   <div className="text-sm">
+                     Player: HP {battleState.pets[0].hp}/{battleState.pets[0].maxHp} | ATK {battleState.pets[0].atk}
+                   </div>
+                   <div className="text-sm">
+                     Opponent: HP {battleState.pets[1]?.hp ?? 0}/{battleState.pets[1]?.maxHp ?? 0} | ATK {battleState.pets[1]?.atk ?? 0}
+                   </div>
+                 </div>
+               )}
+             </div>
+           )}
+
+           <div className="bg-[#1a1a2e] rounded-xl p-4 border border-gray-800 text-center">
+             <div className="text-5xl mb-2">{getStageEmoji(pet.stage)}</div>
+             <p className="text-sm text-gray-400">
+               {pet.name} is ready to explore the real world!
+             </p>
+             <p className="text-xs text-gray-600 mt-1">
+               📸 Camera AR overlays your pet on the camera feed.
+               {arSupported ? ' 🥽 WebXR works on Meta Quest, Meta glasses, and XR browsers!' : ''}
+             </p>
+           </div>
+         </div>
+       ) : (
         <div ref={containerRef} className="relative rounded-2xl overflow-hidden border border-gray-800" style={{ height: '400px' }}>
           {/* Camera feed — z-index 0 */}
           <video
