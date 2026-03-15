@@ -18,7 +18,6 @@ import { ArenaView } from './components/ArenaView';
 import { SocialView } from './components/SocialView';
 import { ARView } from './components/ARView';
 import { SetupScreen } from './components/SetupScreen';
-import { LeaderboardView } from './components/LeaderboardView';
 import { scheduleSceneSync } from './rp1/SceneSync';
 import { parseDeepLink, clearDeepLinkParams } from './rp1/DeepLinkHandler';
 import { startRP1Listener, stopRP1Listener } from './rp1/RP1Listener';
@@ -229,7 +228,6 @@ export default function App() {
         {currentView === 'battle' && <BattleScreen />}
         {currentView === 'arena' && <ArenaView height="calc(100vh - 8rem)" />}
         {currentView === 'social' && <SocialView />}
-        {currentView === 'leaderboard' && <LeaderboardView />}
         {currentView === 'ar' && <ARView />}
         {currentView === 'wallet' && <WalletView />}
       </main>

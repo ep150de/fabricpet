@@ -188,4 +188,4 @@ export interface WalletState {
 
 // --- App State ---
 
-export type AppView = 'home' | 'pet' | 'battle' | 'arena' | 'social' | 'wallet' | 'chat' | 'ar' | 'avatars' | 'settings' | 'leaderboard';
+export type AppView = 'home' | 'pet' | 'battle' | 'arena' | 'social' | 'wallet' | 'chat' | 'ar' | 'avatars' | 'settings';
