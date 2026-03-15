@@ -760,18 +760,7 @@ export function ARView() {
           </div>
         )}
        
-       {/* LLM Chat Toggle Button */}
-       <div className="mb-3">
-         <button
-           onClick={() => {
-             // Simple toggle - in a real app we'd integrate with the chat system
-             alert('LLM Chat Feature: Talk to your pet using local AI!\\n\\nThis would connect to Ollama or other LLM providers for real-time conversations with your pet in AR mode.');
-           }}
-           className="w-full bg-gradient-to-r from-green-500 to-emerald-500 text-white font-semibold py-3 rounded-xl hover:from-green-600 hover:to-emerald-600 transition-all"
-         >
-           💬 Chat with Your Pet (LLM)
-         </button>
-       </div>
+
 
       {!cameraActive ? (
         <div className="space-y-3">
