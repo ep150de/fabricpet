@@ -50,121 +50,163 @@ export function ARView() {
     setCameraSupported(true);
   }, []);
 
-  // Check WebXR support
-  useEffect(() => {
-    if ('xr' in navigator) {
-      (navigator as any).xr?.isSessionSupported?.('immersive-ar').then((supported: boolean) => {
-        setArSupported(supported);
-      }).catch(() => setArSupported(false));
-    }
-  }, []);
+   // Check WebXR support with better cross-browser compatibility
+   useEffect(() => {
+     let isSupported = false;
+     let checked = false;
+     
+     // Standard check
+     if ('xr' in navigator) {
+       (navigator as any).xr?.isSessionSupported?.('immersive-ar').then((supported: boolean) => {
+         checked = true;
+         isSupported = supported;
+         setArSupported(supported);
+       }).catch(() => {
+         checked = true;
+         setArSupported(false);
+       });
+     }
+     
+     // Additional check for browsers that might not have xr in navigator but still support WebXR
+     // Add timeout to prevent hanging in case the promise never resolves
+     const timeout = setTimeout(() => {
+       if (!checked) {
+         // If we haven't gotten a response from the promise yet, assume not supported to avoid hanging UI
+         setArSupported(false);
+       }
+     }, 2000);
+     
+     return () => {
+       clearTimeout(timeout);
+     };
+   }, []);
 
-  // WebXR immersive-ar session — works on Meta Quest, Meta glasses, and WebXR-capable mobile browsers
-  const startWebXR = useCallback(async () => {
-    if (!('xr' in navigator)) {
-      setError('WebXR not supported on this browser.');
-      return;
-    }
+   // WebXR immersive-ar session — works on Meta Quest, Meta glasses, and WebXR-capable mobile browsers
+   const startWebXR = useCallback(async () => {
+     // Check for WebXR support with fallback for browsers like Xverse
+     let isWebXRAvailable = false;
+     let webxrError = '';
+     
+     try {
+       // Standard check
+       if ('xr' in navigator) {
+         const isSupported = await (navigator as any).xr.isSessionSupported('immersive-ar');
+         if (isSupported) {
+           isWebXRAvailable = true;
+         } else {
+           webxrError = 'WebXR immersive-ar mode not supported on this browser/device.';
+         }
+       } else {
+         webxrError = 'WebXR not available in this browser.';
+       }
+     } catch (e: any) {
+       webxrError = `WebXR support check failed: ${e?.message || 'Unknown error'}`;
+     }
 
-    try {
-      setError(null);
-      const xr = (navigator as any).xr;
-      const session = await xr.requestSession('immersive-ar', {
-        requiredFeatures: ['local-floor'],
-        optionalFeatures: ['hit-test', 'hand-tracking'],
-      });
+     if (!isWebXRAvailable) {
+       setError(webxrError);
+       return;
+     }
 
-      xrSessionRef.current = session;
-      setWebxrActive(true);
+     try {
+       setError(null);
+       const xr = (navigator as any).xr;
+       const session = await xr.requestSession('immersive-ar', {
+         requiredFeatures: ['local-floor'],
+         optionalFeatures: ['hit-test', 'hand-tracking'],
+       });
 
-      // Create WebXR-compatible renderer
-      const canvas = document.createElement('canvas');
-      const gl = canvas.getContext('webgl2', { xrCompatible: true }) || canvas.getContext('webgl', { xrCompatible: true });
-      if (!gl) { setError('WebGL not available'); return; }
+       xrSessionRef.current = session;
+       setWebxrActive(true);
 
-      const renderer = new THREE.WebGLRenderer({ canvas, context: gl as any, alpha: true, antialias: true });
-      renderer.xr.enabled = true;
-      renderer.xr.setReferenceSpaceType('local-floor');
-      await renderer.xr.setSession(session);
+       // Create WebXR-compatible renderer
+       const canvas = document.createElement('canvas');
+       const gl = canvas.getContext('webgl2', { xrCompatible: true }) || canvas.getContext('webgl', { xrCompatible: true });
+       if (!gl) { setError('WebGL not available for WebXR'); return; }
 
-      const scene = new THREE.Scene();
-      const camera = new THREE.PerspectiveCamera(70, 1, 0.01, 100);
+       const renderer = new THREE.WebGLRenderer({ canvas, context: gl as any, alpha: true, antialias: true });
+       renderer.xr.enabled = true;
+       renderer.xr.setReferenceSpaceType('local-floor');
+       await renderer.xr.setSession(session);
 
-      // Lighting
-      scene.add(new THREE.AmbientLight(0xffffff, 0.6));
-      const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
-      dirLight.position.set(2, 3, 2);
-      scene.add(dirLight);
+       const scene = new THREE.Scene();
+       const camera = new THREE.PerspectiveCamera(70, 1, 0.01, 100);
 
-      // Pet sphere
-      const petColor = pet?.elementalType === 'fire' ? 0xff6b6b
-        : pet?.elementalType === 'water' ? 0x6bc5ff
-        : pet?.elementalType === 'earth' ? 0x6bff6b
-        : pet?.elementalType === 'air' ? 0xc5c5ff
-        : pet?.elementalType === 'light' ? 0xffff6b
-        : pet?.elementalType === 'dark' ? 0x9b6bff
-        : 0xffffff;
+       // Lighting
+       scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+       const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+       dirLight.position.set(2, 3, 2);
+       scene.add(dirLight);
 
-      const petGeo = new THREE.SphereGeometry(0.15, 32, 32);
-      const petMat = new THREE.MeshToonMaterial({ color: petColor });
-      const petMesh = new THREE.Mesh(petGeo, petMat);
-      petMesh.position.set(0, 0.3, -1); // 1 meter in front, 30cm above floor
-      scene.add(petMesh);
+       // Pet sphere
+       const petColor = pet?.elementalType === 'fire' ? 0xff6b6b
+         : pet?.elementalType === 'water' ? 0x6bc5ff
+         : pet?.elementalType === 'earth' ? 0x6bff6b
+         : pet?.elementalType === 'air' ? 0xc5c5ff
+         : pet?.elementalType === 'light' ? 0xffff6b
+         : pet?.elementalType === 'dark' ? 0x9b6bff
+         : 0xffffff;
 
-      // Eyes
-      const eyeGeo = new THREE.SphereGeometry(0.03, 16, 16);
-      const eyeMat = new THREE.MeshBasicMaterial({ color: 0x000000 });
-      const leftEye = new THREE.Mesh(eyeGeo, eyeMat);
-      leftEye.position.set(-0.06, 0.34, -0.86);
-      scene.add(leftEye);
-      const rightEye = new THREE.Mesh(eyeGeo, eyeMat);
-      rightEye.position.set(0.06, 0.34, -0.86);
-      scene.add(rightEye);
+       const petGeo = new THREE.SphereGeometry(0.15, 32, 32);
+       const petMat = new THREE.MeshToonMaterial({ color: petColor });
+       const petMesh = new THREE.Mesh(petGeo, petMat);
+       petMesh.position.set(0, 0.3, -1); // 1 meter in front, 30cm above floor
+       scene.add(petMesh);
 
-      // Shadow
-      const shadowGeo = new THREE.CircleGeometry(0.12, 32);
-      const shadowMat = new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.2 });
-      const shadow = new THREE.Mesh(shadowGeo, shadowMat);
-      shadow.rotation.x = -Math.PI / 2;
-      shadow.position.set(0, 0.01, -1);
-      scene.add(shadow);
+       // Eyes
+       const eyeGeo = new THREE.SphereGeometry(0.03, 16, 16);
+       const eyeMat = new THREE.MeshBasicMaterial({ color: 0x000000 });
+       const leftEye = new THREE.Mesh(eyeGeo, eyeMat);
+       leftEye.position.set(-0.06, 0.34, -0.86);
+       scene.add(leftEye);
+       const rightEye = new THREE.Mesh(eyeGeo, eyeMat);
+       rightEye.position.set(0.06, 0.34, -0.86);
+       scene.add(rightEye);
 
-      // XR render loop
-      renderer.setAnimationLoop((_time, frame) => {
-        const t = Date.now() * 0.001;
-        // Bounce
-        petMesh.position.y = 0.3 + Math.abs(Math.sin(t * 2)) * 0.06;
-        leftEye.position.y = petMesh.position.y + 0.04;
-        rightEye.position.y = petMesh.position.y + 0.04;
-        // Squash/stretch
-        const squash = 1 + Math.sin(t * 4) * 0.05;
-        petMesh.scale.set(1 / squash, squash, 1 / squash);
-        shadow.scale.setScalar(1 - Math.abs(Math.sin(t * 2)) * 0.2);
+       // Shadow
+       const shadowGeo = new THREE.CircleGeometry(0.12, 32);
+       const shadowMat = new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.2 });
+       const shadow = new THREE.Mesh(shadowGeo, shadowMat);
+       shadow.rotation.x = -Math.PI / 2;
+       shadow.position.set(0, 0.01, -1);
+       scene.add(shadow);
 
-        renderer.render(scene, camera);
-      });
+       // XR render loop
+       renderer.setAnimationLoop((_time, frame) => {
+         const t = Date.now() * 0.001;
+         // Bounce
+         petMesh.position.y = 0.3 + Math.abs(Math.sin(t * 2)) * 0.06;
+         leftEye.position.y = petMesh.position.y + 0.04;
+         rightEye.position.y = petMesh.position.y + 0.04;
+         // Squash/stretch
+         const squash = 1 + Math.sin(t * 4) * 0.05;
+         petMesh.scale.set(1 / squash, squash, 1 / squash);
+         shadow.scale.setScalar(1 - Math.abs(Math.sin(t * 2)) * 0.2);
 
-      // Cleanup on session end
-      session.addEventListener('end', () => {
-        setWebxrActive(false);
-        xrSessionRef.current = null;
-        renderer.setAnimationLoop(null);
-        renderer.dispose();
-        petGeo.dispose();
-        petMat.dispose();
-        eyeGeo.dispose();
-        eyeMat.dispose();
-        shadowGeo.dispose();
-        shadowMat.dispose();
-      });
+         renderer.render(scene, camera);
+       });
 
-      console.log('[AR] WebXR immersive-ar session started');
-    } catch (e: any) {
-      setError(`WebXR error: ${e?.message || 'Failed to start session'}`);
-      console.error('[AR] WebXR error:', e);
-      setWebxrActive(false);
-    }
-  }, [pet]);
+       // Cleanup on session end
+       session.addEventListener('end', () => {
+         setWebxrActive(false);
+         xrSessionRef.current = null;
+         renderer.setAnimationLoop(null);
+         renderer.dispose();
+         petGeo.dispose();
+         petMat.dispose();
+         eyeGeo.dispose();
+         eyeMat.dispose();
+         shadowGeo.dispose();
+         shadowMat.dispose();
+       });
+
+       console.log('[AR] WebXR immersive-ar session started');
+     } catch (e: any) {
+       setError(`WebXR error: ${e?.message || 'Failed to start session'}`);
+       console.error('[AR] WebXR error:', e);
+       setWebxrActive(false);
+     }
+   }, [pet]);
 
   const stopWebXR = useCallback(() => {
     if (xrSessionRef.current) {
@@ -174,97 +216,146 @@ export function ARView() {
     setWebxrActive(false);
   }, []);
 
-   // Camera passthrough — uses same simple pattern as QR scanner (proven to work)
-   const startCamera = useCallback(async () => {
-     try {
-       setCameraReady(false);
-       setError(null);
-       console.log('[AR] Starting camera, facingMode:', facingMode);
+    // Enhanced camera passthrough with better error handling and user feedback
+    const startCamera = useCallback(async () => {
+      // Pre-check: verify camera availability
+      if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) {
+        setError('Camera API not available on this browser/device.');
+        setCameraSupported(false);
+        return;
+      }
 
-       // Stop any existing stream first
-       if (streamRef.current) {
-         streamRef.current.getTracks().forEach(t => t.stop());
-         streamRef.current = null;
-       }
+      try {
+        setCameraReady(false);
+        setError(null);
+        console.log('[AR] Starting camera, facingMode:', facingMode);
 
-       // Try with ideal settings first
-       let stream: MediaStream;
-       try {
-         stream = await navigator.mediaDevices.getUserMedia({
-           video: { facingMode, width: { ideal: 1280 }, height: { ideal: 720 } },
-         });
-       } catch (e: any) {
-         // Fallback to basic constraints if ideal settings fail
-         if (e.name === 'OverconstrainedError') {
-           console.log('[AR] Ideal camera constraints failed, trying basic settings...');
-           stream = await navigator.mediaDevices.getUserMedia({
-             video: { facingMode }
-           });
-         } else {
-           throw e;
-         }
-       }
+        // Stop any existing stream first
+        if (streamRef.current) {
+          streamRef.current.getTracks().forEach(t => t.stop());
+          streamRef.current = null;
+        }
 
-       streamRef.current = stream;
+        // Check camera permissions and availability first
+        await checkCameraAvailability();
 
-       // Show camera info
-       const track = stream.getVideoTracks()[0];
-       if (track) {
-         const settings = track.getSettings();
-         setCameraInfo(`${settings.width}×${settings.height} • ${track.label}`);
-       }
+        // Try with ideal settings first
+        let stream: MediaStream;
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode, width: { ideal: 1280 }, height: { ideal: 720 } },
+          });
+        } catch (e: any) {
+          // Fallback to basic constraints if ideal settings fail
+          if (e.name === 'OverconstrainedError') {
+            console.log('[AR] Ideal camera constraints failed, trying basic settings...');
+            stream = await navigator.mediaDevices.getUserMedia({
+              video: { facingMode }
+            });
+          } else {
+            throw e;
+          }
+        }
 
-       if (videoRef.current) {
-         videoRef.current.srcObject = stream;
-         await videoRef.current.play();
-         console.log('[AR] Camera playing successfully');
-       }
+        streamRef.current = stream;
 
-       // Both flags set AFTER play() succeeds — this triggers the 3D overlay
-       setCameraReady(true);
-       setCameraActive(true);
-     } catch (e: any) {
-       let msg = '';
-       if (e?.name === 'NotAllowedError') {
-         msg = 'Camera access denied. Please allow camera permissions in your browser settings.';
-       } else if (e?.name === 'NotFoundError') {
-         msg = 'No camera found on this device. Please check if a camera is connected and not disabled in device settings.';
-       } else if (e?.name === 'NotReadableError') {
-         msg = 'Camera is in use by another app. Close other camera applications (like Zoom, Teams, or other browser tabs) and try again.';
-       } else if (e?.name === 'AbortError') {
-         msg = 'Camera was interrupted. Please try again.';
-       } else if (e?.name === 'OverconstrainedError') {
-         msg = 'Camera constraints could not be satisfied. Trying with default settings...';
-         // Try again with less restrictive constraints
-         try {
-           setCameraReady(false);
-           setError(null);
-           const stream = await navigator.mediaDevices.getUserMedia({
-             video: { facingMode }
-           });
-           
-           streamRef.current = stream;
-           
-           if (videoRef.current) {
-             videoRef.current.srcObject = stream;
-             await videoRef.current.play();
-             console.log('[AR] Camera playing successfully with fallback settings');
-           }
-           
-           setCameraReady(true);
-           setCameraActive(true);
-           return; // Success with fallback
-         } catch (fallbackError: any) {
-           msg = `Camera error even with fallback settings: ${fallbackError?.message || 'Unknown error'}`;
-         }
-       } else {
-         msg = `Camera error: ${e?.message || 'Unknown error'}`;
-       }
-       
-       setError(msg);
-       console.error('[AR] Camera error:', e?.name, e?.message);
-     }
-   }, [facingMode]);
+        // Show camera info
+        const track = stream.getVideoTracks()[0];
+        if (track) {
+          const settings = track.getSettings();
+          setCameraInfo(`${settings.width}×${settings.height} • ${track.label}`);
+        }
+
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          try {
+            await videoRef.current.play();
+            console.log('[AR] Camera playing successfully');
+          } catch (playError) {
+            console.error('[AR] Video play error:', playError);
+            throw new Error('Video element failed to play. Please ensure autoplay is allowed.');
+          }
+        }
+
+        // Both flags set AFTER play() succeeds — this triggers the 3D overlay
+        setCameraReady(true);
+        setCameraActive(true);
+      } catch (e: any) {
+        let msg = '';
+        let userAction = '';
+
+        if (e?.name === 'NotAllowedError') {
+          msg = 'Camera access denied.';
+          userAction = 'Please allow camera access when prompted by your browser.';
+        } else if (e?.name === 'NotFoundError') {
+          msg = 'No camera found on this device.';
+          userAction = 'Please check that a camera is connected and not disabled in device settings.';
+        } else if (e?.name === 'NotReadableError') {
+          msg = 'Camera is in use by another application.';
+          userAction = 'Close other apps that might be using the camera (Zoom, Teams, etc.) and try again.';
+        } else if (e?.name === 'AbortError') {
+          msg = 'Camera access was aborted.';
+          userAction = 'Please try again.';
+        } else if (e?.name === 'OverconstrainedError') {
+          msg = 'Camera constraints could not be satisfied.';
+          userAction = 'Trying with default settings...';
+          // Try again with less restrictive constraints
+          try {
+            setCameraReady(false);
+            setError(null);
+            const stream = await navigator.mediaDevices.getUserMedia({
+              video: { facingMode }
+            });
+            
+            streamRef.current = stream;
+            
+            if (videoRef.current) {
+              videoRef.current.srcObject = stream;
+              await videoRef.current.play();
+              console.log('[AR] Camera playing successfully with fallback settings');
+            }
+            
+            setCameraReady(true);
+            setCameraActive(true);
+            return; // Success with fallback
+          } catch (fallbackError: any) {
+            msg = `Camera error even with fallback settings: ${fallbackError?.message || 'Unknown error'}`;
+            userAction = 'Please try restarting your browser or device.';
+          }
+        } else if (e?.name === 'NotSupportedError' || e?.name === 'TypeError') {
+          msg = 'Camera not supported on this browser/device.';
+          userAction = 'Please try a different browser or device.';
+        } else {
+          msg = `Camera error: ${e?.message || 'Unknown error'}`;
+          userAction = 'Please try again or restart your browser.';
+        }
+
+        setError(`${msg} ${userAction}`.trim());
+        console.error('[AR] Camera error:', e?.name, e?.message);
+      }
+    }, [facingMode]);
+
+    // Check camera permissions and availability
+    const checkCameraAvailability = useCallback(async () => {
+      // Check secure context (HTTPS required for camera)
+      if (typeof window !== 'undefined' && !window.isSecureContext) {
+        throw new Error('Camera requires HTTPS. Please access this site via https://');
+      }
+
+      // Enumerate devices to check for cameras
+      try {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const videoDevices = devices.filter(device => device.kind === 'videoinput');
+        
+        if (videoDevices.length === 0) {
+          throw new Error('No camera found on this device. Please check if a camera is connected and not disabled in settings.');
+        }
+      } catch (enumError) {
+        // If we can't enumerate devices, we'll still try to access camera and let getUserMedia fail with specific error
+        console.warn('[AR] Could not enumerate devices:', enumError);
+        // Continue - we'll get a more specific error from getUserMedia if needed
+      }
+    }, []);
 
   const stopCamera = useCallback(() => {
     if (streamRef.current) {
@@ -596,11 +687,78 @@ export function ARView() {
         <p className="text-gray-400 text-sm mt-1">See your pet in the real world!</p>
       </div>
 
-       {error && (
-         <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-3 mb-4 text-center">
-           <p className="text-sm text-red-400">{error}</p>
-         </div>
-       )}
+        {error && (
+          <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4 mb-4">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-sm font-medium text-red-400 flex-1">
+                {error.startsWith('Camera access denied.') ? '🔒 Camera Permission Required' : 
+                 error.startsWith('No camera found') ? '📷 Camera Not Detected' : 
+                 error.startsWith('Camera is in use') ? '📹 Camera In Use' : 
+                 error.startsWith('Camera was interrupted') ? '⏸️ Camera Interrupted' : 
+                 error.startsWith('Camera constraints') ? '⚙️ Camera Settings Issue' : 
+                 error.startsWith('Camera error') ? '❌ Camera Error' : 
+                 error.startsWith('WebGL failed') ? '🎨 Graphics Error' : 
+                 error.startsWith('WebGL context lost') ? '🔄 Graphics Context Lost' : 
+                 error.startsWith('Camera requires HTTPS') ? '🔒 Secure Connection Required' : 
+                 error.startsWith('Camera API not available') ? '📷 Camera API Unavailable' : 
+                 error.startsWith('WebXR not supported') ? '🥽 WebXR Not Available' : 
+                 error.startsWith('WebXR not available') ? '🥽 WebXR Not Available' : 
+                 error.startsWith('WebXR support check failed') ? '🥽 WebXR Check Failed' : 
+                 error.startsWith('WebXR error') ? '🥽 WebXR Session Error' : 
+                 '⚠️ Error'}
+              </p>
+              <button
+                onClick={() => {
+                  // Clear error after 3 seconds or allow manual clearing
+                  setTimeout(() => setError(null), 3000);
+                }}
+                className="text-red-300 hover:text-red-200 text-xs"
+              >
+                ✕
+              </button>
+            </div>
+            <p className="text-xs text-red-300 mb-2">{error}</p>
+            {/* Add helpful suggestions based on error type */}
+            {error.startsWith('Camera access denied.') && (
+              <div className="text-xs text-red-200 bg-red-500/5 px-2 py-1 rounded mb-2">
+                💡 Tap the camera icon in your browser's address bar to allow access
+              </div>
+            )}
+            {error.startsWith('No camera found') && (
+              <div className="text-xs text-red-200 bg-red-500/5 px-2 py-1 rounded mb-2">
+                💡 Check camera connections and device settings
+              </div>
+            )}
+            {error.startsWith('Camera is in use') && (
+              <div className="text-xs text-red-200 bg-red-500/5 px-2 py-1 rounded mb-2">
+                💡 Close other apps using the camera and try again
+              </div>
+            )}
+            {error.startsWith('Camera was interrupted') && (
+              <div className="text-xs text-red-200 bg-red-500/5 px-2 py-1 rounded mb-2">
+                💡 Try again - the interruption may have been temporary
+              </div>
+            )}
+            {error.startsWith('Camera constraints') && (
+              <div className="text-xs text-red-200 bg-red-500/5 px-2 py-1 rounded mb-2">
+                💡 The app will automatically try with simpler settings
+              </div>
+            )}
+            {error.startsWith('Camera requires HTTPS') && (
+              <div className="text-xs text-red-200 bg-red-500/5 px-2 py-1 rounded mb-2">
+                💡 Please reload the page using https://
+              </div>
+            )}
+            {(error.startsWith('WebXR not supported') || 
+              error.startsWith('WebXR not available') || 
+              error.startsWith('WebXR support check failed') || 
+              error.startsWith('WebXR error')) && (
+              <div className="text-xs text-red-200 bg-red-500/5 px-2 py-1 rounded mb-2">
+                💡 WebXR works on Meta Quest, Meta glasses, and compatible browsers
+              </div>
+            )}
+          </div>
+        )}
        
        {/* LLM Chat Toggle Button */}
        <div className="mb-3">
