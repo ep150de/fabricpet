@@ -345,12 +345,70 @@ export function ARView() {
 
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
+          
+          // Wait for video metadata to load before playing
+          await new Promise<void>((resolve, reject) => {
+            if (!videoRef.current) {
+              reject(new Error('Video element not found'));
+              return;
+            }
+            
+            // Set up event handlers
+            const onLoadedMetadata = () => {
+              console.log('[AR] Video metadata loaded');
+              videoRef.current?.removeEventListener('loadedmetadata', onLoadedMetadata);
+              videoRef.current?.removeEventListener('error', onError);
+              resolve();
+            };
+            
+            const onError = (e: Event) => {
+              console.error('[AR] Video error during metadata load:', e);
+              videoRef.current?.removeEventListener('loadedmetadata', onLoadedMetadata);
+              videoRef.current?.removeEventListener('error', onError);
+              reject(new Error('Failed to load video metadata'));
+            };
+            
+            videoRef.current.addEventListener('loadedmetadata', onLoadedMetadata);
+            videoRef.current.addEventListener('error', onError);
+            
+            // Timeout in case metadata never loads
+            setTimeout(() => {
+              videoRef.current?.removeEventListener('loadedmetadata', onLoadedMetadata);
+              videoRef.current?.removeEventListener('error', onError);
+              reject(new Error('Timeout waiting for video metadata'));
+            }, 5000);
+          });
+          
           try {
+            // Attempt to play - may fail due to autoplay policies
             await videoRef.current.play();
             console.log('[AR] Camera playing successfully');
-          } catch (playError) {
-            console.error('[AR] Video play error:', playError);
-            throw new Error('Video element failed to play. Please ensure autoplay is allowed.');
+          } catch (playError: any) {
+            console.warn('[AR] Video play failed (may be autoplay policy):', playError.name);
+            
+            // Try to enable play on user interaction
+            if (playError.name === 'NotAllowedError') {
+              // Add click handler to container to trigger play
+              const container = containerRef.current;
+              if (container) {
+                const playOnInteraction = async () => {
+                  if (videoRef.current) {
+                    try {
+                      await videoRef.current.play();
+                      console.log('[AR] Camera playing after user interaction');
+                    } catch (e) {
+                      console.error('[AR] Failed to play even after interaction:', e);
+                    }
+                  }
+                  container.removeEventListener('click', playOnInteraction);
+                };
+                container.addEventListener('click', playOnInteraction);
+                // Show message to user
+                setError('Camera is ready. Tap to start the video feed.');
+              }
+            } else {
+              throw new Error(`Video element failed to play: ${playError.message}`);
+            }
           }
         }
 
@@ -482,40 +540,61 @@ export function ARView() {
        canvas.height = height * window.devicePixelRatio;
        container.appendChild(canvas);
 
-       try {
-         renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true, premultipliedAlpha: false });
-       } catch (e) {
-         console.error('[AR] WebGLRenderer failed to initialize:', e);
-         setError('WebGL failed to initialize. Try closing other tabs or apps using the GPU.');
-         return;
-       }
+        try {
+          renderer = new THREE.WebGLRenderer({ 
+            canvas, 
+            alpha: true, 
+            antialias: false, // Disable antialiasing to reduce GPU load
+            premultipliedAlpha: false,
+            powerPreference: 'low-power' // Use low-power GPU if available
+          });
+        } catch (e) {
+          console.error('[AR] WebGLRenderer failed to initialize:', e);
+          setError('WebGL failed to initialize. Try closing other tabs or apps using the GPU.');
+          return;
+        }
 
+        // Track context loss/restoration state
+        let contextLost = false;
+        
         // Handle WebGL context lost/restored
         const handleContextLost = (e: Event) => {
           e.preventDefault();
           console.warn('[AR] WebGL context lost');
           setError('WebGL context lost — GPU may be overloaded. Trying to restore...');
+          contextLost = true;
           cancelled = true;
         };
 
         const handleContextRestored = () => {
           console.log('[AR] WebGL context restored');
           setError(null);
+          contextLost = false;
           cancelled = false;
-          // Trigger re-initialization
-          loopAnimId = requestAnimationFrame(initThreeJS);
+          // Clean up old canvas before re-initialization
+          if (canvas && canvas.parentNode) {
+            canvas.parentNode.removeChild(canvas);
+          }
+          canvas = null;
+          renderer = null;
+          // Trigger re-initialization after a short delay
+          setTimeout(() => {
+            if (!cancelled && containerRef.current) {
+              loopAnimId = requestAnimationFrame(initThreeJS);
+            }
+          }, 100);
         };
 
-       canvas.addEventListener('webglcontextlost', handleContextLost);
-       canvas.addEventListener('webglcontextrestored', handleContextRestored);
+        canvas.addEventListener('webglcontextlost', handleContextLost);
+        canvas.addEventListener('webglcontextrestored', handleContextRestored);
 
-       // Cleanup event listeners on unmount
-       const cleanupEventListeners = () => {
-         if (canvas) {
-           canvas.removeEventListener('webglcontextlost', handleContextLost);
-           canvas.removeEventListener('webglcontextrestored', handleContextRestored);
-         }
-       };
+        // Store cleanup function for later use
+        (canvas as any).__arCleanup = () => {
+          if (canvas) {
+            canvas.removeEventListener('webglcontextlost', handleContextLost);
+            canvas.removeEventListener('webglcontextrestored', handleContextRestored);
+          }
+        };
 
        renderer.setSize(width, height);
        renderer.setPixelRatio(window.devicePixelRatio);
@@ -785,18 +864,21 @@ export function ARView() {
        cancelAnimationFrame(loopAnimId);
        geometries.forEach(g => g.dispose());
        materials.forEach(m => m.dispose());
+       
+       // Use stored cleanup function if available
+       if (canvas && (canvas as any).__arCleanup) {
+         (canvas as any).__arCleanup();
+       }
+       
        if (renderer) {
          renderer.dispose();
          renderer.forceContextLoss();
+         renderer = null;
        }
        if (canvas && canvas.parentNode) {
          canvas.parentNode.removeChild(canvas);
        }
-       // Cleanup event listeners
-       if (canvas) {
-         canvas.removeEventListener('webglcontextlost', (e) => {});
-         canvas.removeEventListener('webglcontextrestored', (e) => {});
-       }
+       canvas = null;
      };
    }, [cameraActive, cameraReady, pet]);
 

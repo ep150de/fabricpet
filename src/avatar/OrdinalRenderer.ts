@@ -3,13 +3,13 @@
 // ============================================
 //
 // Multi-source content fetching (no single point of failure):
-// 1. UniSat Open API (primary, requires API key)
-// 2. Hiro API (free, no auth)
-// 3. ordinals.com (last resort fallback)
+// 1. UniSat Open API (primary, requires API key) - may have CORS issues
+// 2. ordinals.com (CORS-friendly, works from any origin)
+// 
+// Note: Hiro API removed due to 410 Gone and CORS restrictions
 // ============================================
 
 const UNISAT_API_BASE = 'https://open-api.unisat.io/v1/indexer';
-const HIRO_API_BASE = 'https://api.hiro.so/ordinals/v1';
 const ORDINALS_CONTENT_BASE = 'https://ordinals.com/content';
 
 // API key loaded from env (set VITE_UNISAT_API_KEY in .env)
@@ -29,10 +29,12 @@ export interface InscriptionContent {
 
 /**
  * Fetch inscription content with multi-source fallback.
- * Tries: UniSat API → Hiro API → ordinals.com
+ * Tries: UniSat API (if key available) → ordinals.com (CORS-friendly)
+ * 
+ * Note: Hiro API removed due to 410 Gone errors and CORS restrictions from GitHub Pages
  */
 export async function fetchInscriptionContent(inscriptionId: string): Promise<InscriptionContent | null> {
-  // Source 1: UniSat Open API
+  // Source 1: UniSat Open API (optional, requires API key)
   const apiKey = getUnisatApiKey();
   if (apiKey) {
     try {
@@ -54,23 +56,7 @@ export async function fetchInscriptionContent(inscriptionId: string): Promise<In
     }
   }
 
-  // Source 2: Hiro API (free, no auth)
-  try {
-    const response = await fetch(
-      `${HIRO_API_BASE}/inscriptions/${inscriptionId}/content`,
-      { signal: AbortSignal.timeout(10000) }
-    );
-    if (response.ok) {
-      const contentType = response.headers.get('content-type') || 'application/octet-stream';
-      const blob = await response.blob();
-      console.log('[OrdinalRenderer] Loaded from Hiro API');
-      return { blob, contentType, source: 'hiro' };
-    }
-  } catch (e) {
-    console.warn('[OrdinalRenderer] Hiro API failed:', e);
-  }
-
-  // Source 3: ordinals.com (fallback)
+  // Source 2: ordinals.com (primary fallback - CORS-friendly)
   try {
     const response = await fetch(
       `${ORDINALS_CONTENT_BASE}/${inscriptionId}`,

@@ -11,6 +11,14 @@ import { checkMSFHealth, pushSceneJSON, copySceneJSONToClipboard } from '../rp1/
 import { downloadPetGLB } from '../rp1/GLBExporter';
 import { generateSceneJSON } from '../rp1/SceneJSONGenerator';
 import { fetchInscriptionContent, applyImageTextureToMesh, categorizeContentType, load3DModelFromContent } from '../avatar/OrdinalRenderer';
+import { QRCodeGenerator } from './QRCodeGenerator';
+
+type HomeTheme = {
+  id: string;
+  name: string;
+  emoji: string;
+  unlockLevel: number;
+};
 
 export function HomeView() {
   const { pet, home, setHome, identity, wallet } = useStore();
@@ -19,16 +27,37 @@ export function HomeView() {
   const [checking, setChecking] = useState(false);
   const [pushing, setPushing] = useState(false);
   const [pushResult, setPushResult] = useState<'success' | 'copied' | 'error' | null>(null);
+  const [newThemeUnlocked, setNewThemeUnlocked] = useState<HomeTheme | null>(null);
 
   if (!pet) return null;
 
   const currentTheme = HOME_THEMES.find(t => t.id === home.theme) || HOME_THEMES[0];
   const overallHealth = getOverallHealth(pet.needs);
 
+  // Check for newly unlocked themes when pet levels up
+  useEffect(() => {
+    // Find all themes that are now unlocked but weren't previously
+    const newlyUnlocked = HOME_THEMES.filter(theme => 
+      pet.level >= theme.unlockLevel && 
+      theme.id !== home.theme
+    );
+    
+    // If we found newly unlocked themes and haven't already notified about one
+    if (newlyUnlocked.length > 0 && !newThemeUnlocked) {
+      // Sort by unlock level to get the highest level newly unlocked theme
+      const highestNewTheme = newlyUnlocked.reduce((prev, current) => 
+        prev.unlockLevel > current.unlockLevel ? prev : current
+      );
+      setNewThemeUnlocked(highestNewTheme);
+    }
+  }, [pet.level, home.theme]);
+
   const handleThemeChange = (themeId: string) => {
     const theme = HOME_THEMES.find(t => t.id === themeId);
     if (theme && pet.level >= theme.unlockLevel) {
       setHome({ ...home, theme: themeId });
+      // Clear the notification when user manually changes theme
+      setNewThemeUnlocked(null);
     }
   };
 
@@ -427,36 +456,72 @@ export function HomeView() {
         </div>
       </div>
 
-      {/* Theme Selector */}
-      <div className="bg-[#1a1a2e] rounded-xl p-4 mb-4 border border-gray-800">
-        <h3 className="text-sm font-semibold text-gray-300 mb-3">🎨 Home Theme</h3>
-        <div className="grid grid-cols-5 gap-2">
-          {HOME_THEMES.map((theme) => {
-            const unlocked = pet.level >= theme.unlockLevel;
-            const active = home.theme === theme.id;
-            return (
-              <button
-                key={theme.id}
-                onClick={() => handleThemeChange(theme.id)}
-                disabled={!unlocked}
-                className={`p-2 rounded-lg text-center transition-all ${
-                  active
-                    ? 'bg-indigo-500/20 border border-indigo-500'
-                    : unlocked
-                    ? 'bg-[#0f0f23] border border-gray-700 hover:border-gray-500'
-                    : 'bg-[#0f0f23] border border-gray-800 opacity-40'
-                }`}
-              >
-                <div className="text-xl">{unlocked ? theme.emoji : '🔒'}</div>
-                <div className="text-xs text-gray-400 mt-1">{theme.name}</div>
-                {!unlocked && (
-                  <div className="text-xs text-gray-600">Lv.{theme.unlockLevel}</div>
-                )}
-              </button>
-            );
-          })}
-        </div>
-      </div>
+       {/* Theme Selector */}
+       <div className="bg-[#1a1a2e] rounded-xl p-4 mb-4 border border-gray-800">
+         <h3 className="text-sm font-semibold text-gray-300 mb-3">🎨 Home Theme</h3>
+         <div className="grid grid-cols-5 gap-2">
+           {HOME_THEMES.map((theme) => {
+             const unlocked = pet.level >= theme.unlockLevel;
+             const active = home.theme === theme.id;
+             return (
+               <button
+                 key={theme.id}
+                 onClick={() => handleThemeChange(theme.id)}
+                 disabled={!unlocked}
+                 className={`p-2 rounded-lg text-center transition-all ${
+                   active
+                     ? 'bg-indigo-500/20 border border-indigo-500'
+                     : unlocked
+                     ? 'bg-[#0f0f23] border border-gray-700 hover:border-gray-500'
+                     : 'bg-[#0f0f23] border border-gray-800 opacity-40'
+                 }`}
+               >
+                 <div className="text-xl">{unlocked ? theme.emoji : '🔒'}</div>
+                 <div className="text-xs text-gray-400 mt-1">{theme.name}</div>
+                 {!unlocked && (
+                   <div className="text-xs text-gray-600">Lv.{theme.unlockLevel}</div>
+                 )}
+               </button>
+             );
+           })}
+         </div>
+       </div>
+
+       {/* New Theme Unlocked Notification */}
+       {newThemeUnlocked && (
+         <div className="mt-4 p-4 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-xl border border-indigo-300/50">
+           <div className="flex items-center justify-between mb-3">
+             <h3 className="text-lg font-bold text-white">
+               🎉 New Theme Unlocked!
+             </h3>
+             <button
+               onClick={() => setNewThemeUnlocked(null)}
+               className="text-white hover:text-gray-200 text-xs"
+             >
+               ✕
+             </button>
+           </div>
+           <div className="text-center">
+             <div className="text-6xl mb-2">{newThemeUnlocked.emoji}</div>
+             <p className="text-xl font-bold text-white">
+               {newThemeUnlocked.name}
+             </p>
+             <p className="text-sm text-gray-200">
+               Unlocked at level {newThemeUnlocked.unlockLevel}
+             </p>
+             <button
+               onClick={() => {
+                 handleThemeChange(newThemeUnlocked.id);
+                 setNewThemeUnlocked(null);
+               }}
+               className="mt-3 w-full bg-white/20 hover:bg-white/30 text-white font-semibold py-2 px-4 rounded-lg"
+             >
+               Use This Theme Now
+               {newThemeUnlocked.id === home.theme ? ' (Already Active)' : ''}
+             </button>
+           </div>
+         </div>
+       )}
 
       {/* Guestbook */}
       <div className="bg-[#1a1a2e] rounded-xl p-4 mb-4 border border-gray-800">
@@ -476,6 +541,19 @@ export function HomeView() {
           </div>
         )}
       </div>
+
+      {/* Pet QR Code */}
+      {identity && (
+        <div className="bg-[#1a1a2e] rounded-xl p-4 mb-4 border border-gray-800">
+          <h3 className="text-sm font-semibold text-gray-300 mb-3">📱 Pet QR Code</h3>
+          <p className="text-xs text-gray-500 mb-3">
+            Share this QR code with friends so they can add {pet.name} to their roster
+          </p>
+          <div className="flex justify-center">
+            <QRCodeGenerator npub={identity.npub} petName={pet.name} size={180} />
+          </div>
+        </div>
+      )}
 
       {/* Nostr Identity */}
       {identity && (
