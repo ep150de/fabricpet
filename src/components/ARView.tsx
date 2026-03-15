@@ -50,36 +50,36 @@ export function ARView() {
     setCameraSupported(true);
   }, []);
 
-   // Check WebXR support with better cross-browser compatibility
-   useEffect(() => {
-     let isSupported = false;
-     let checked = false;
-     
-     // Standard check
-     if ('xr' in navigator) {
-       (navigator as any).xr?.isSessionSupported?.('immersive-ar').then((supported: boolean) => {
-         checked = true;
-         isSupported = supported;
-         setArSupported(supported);
-       }).catch(() => {
-         checked = true;
-         setArSupported(false);
-       });
-     }
-     
-     // Additional check for browsers that might not have xr in navigator but still support WebXR
-     // Add timeout to prevent hanging in case the promise never resolves
-     const timeout = setTimeout(() => {
-       if (!checked) {
-         // If we haven't gotten a response from the promise yet, assume not supported to avoid hanging UI
-         setArSupported(false);
-       }
-     }, 2000);
-     
-     return () => {
-       clearTimeout(timeout);
-     };
-   }, []);
+    // Check WebXR support with better cross-browser compatibility
+    useEffect(() => {
+      let isSupported = false;
+      let checked = false;
+      
+      // Standard check
+      if ('xr' in navigator) {
+        (navigator as any).xr?.isSessionSupported?.('immersive-ar').then((supported: boolean) => {
+          checked = true;
+          isSupported = supported;
+          setArSupported(supported);
+        }).catch((error: any) => {
+          checked = true;
+          setArSupported(false);
+        });
+      }
+      
+      // Additional check for browsers that might not have xr in navigator but still support WebXR
+      // Add timeout to prevent hanging in case the promise never resolves
+      const timeout = setTimeout(() => {
+        if (!checked) {
+          // If we haven't gotten a response from the promise yet, assume not supported to avoid hanging UI
+          setArSupported(false);
+        }
+      }, 2000);
+      
+      return () => {
+        clearTimeout(timeout);
+      };
+    }, []);
 
    // WebXR immersive-ar session — works on Meta Quest, Meta glasses, and WebXR-capable mobile browsers
    const startWebXR = useCallback(async () => {
