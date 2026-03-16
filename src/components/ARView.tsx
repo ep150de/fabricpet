@@ -383,6 +383,9 @@ export function ARView() {
             // Attempt to play - may fail due to autoplay policies
             await videoRef.current.play();
             console.log('[AR] Camera playing successfully');
+            // Only set flags when video actually plays
+            setCameraReady(true);
+            setCameraActive(true);
           } catch (playError: any) {
             console.warn('[AR] Video play failed (may be autoplay policy):', playError.name);
             
@@ -396,25 +399,28 @@ export function ARView() {
                     try {
                       await videoRef.current.play();
                       console.log('[AR] Camera playing after user interaction');
+                      // Set flags AFTER user interaction succeeds
+                      setCameraReady(true);
+                      setCameraActive(true);
+                      setError(null);
                     } catch (e) {
                       console.error('[AR] Failed to play even after interaction:', e);
+                      setError('Failed to start video. Please try again.');
                     }
                   }
                   container.removeEventListener('click', playOnInteraction);
                 };
                 container.addEventListener('click', playOnInteraction);
-                // Show message to user
-                setError('Camera is ready. Tap to start the video feed.');
+                // Show message to user - don't set camera flags yet!
+                setError('Camera detected. Tap anywhere to start the video feed.');
+                setCameraActive(true); // Allow UI to show, but cameraReady stays false until video plays
+                return; // CRITICAL: Exit here, don't set cameraReady yet
               }
             } else {
               throw new Error(`Video element failed to play: ${playError.message}`);
             }
           }
         }
-
-        // Both flags set AFTER play() succeeds — this triggers the 3D overlay
-        setCameraReady(true);
-        setCameraActive(true);
       } catch (e: any) {
         let msg = '';
         let userAction = '';

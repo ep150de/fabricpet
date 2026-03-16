@@ -10,6 +10,7 @@ import { HOME_THEMES, RP1_CONFIG } from '../utils/constants';
 import { checkMSFHealth, pushSceneJSON, copySceneJSONToClipboard } from '../rp1/MVMFBridge';
 import { downloadPetGLB } from '../rp1/GLBExporter';
 import { generateSceneJSON } from '../rp1/SceneJSONGenerator';
+import { forceSyncScene } from '../rp1/SceneSync';
 import { fetchInscriptionContent, applyImageTextureToMesh, categorizeContentType, load3DModelFromContent } from '../avatar/OrdinalRenderer';
 import { QRCodeGenerator } from './QRCodeGenerator';
 
@@ -21,13 +22,15 @@ type HomeTheme = {
 };
 
 export function HomeView() {
-  const { pet, home, setHome, identity, wallet } = useStore();
+  const { pet, home, setHome, identity, wallet, setNotification } = useStore();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [msfOnline, setMsfOnline] = useState<boolean | null>(null);
   const [checking, setChecking] = useState(false);
   const [pushing, setPushing] = useState(false);
   const [pushResult, setPushResult] = useState<'success' | 'copied' | 'error' | null>(null);
   const [newThemeUnlocked, setNewThemeUnlocked] = useState<HomeTheme | null>(null);
+  const [quickSyncing, setQuickSyncing] = useState(false);
+  const [quickSyncResult, setQuickSyncResult] = useState<'success' | 'error' | null>(null);
 
   if (!pet) return null;
 
@@ -68,6 +71,39 @@ export function HomeView() {
     setChecking(false);
   };
 
+  const handleQuickSync = async () => {
+    if (!wallet.connected || wallet.inscriptions.length === 0) {
+      setQuickSyncResult('error');
+      setNotification({ message: 'Connect wallet with ordinals first', emoji: '⚠️' });
+      setTimeout(() => setQuickSyncResult(null), 3000);
+      return;
+    }
+
+    setQuickSyncing(true);
+    setQuickSyncResult(null);
+    setNotification({ message: 'Syncing scene to RP1...', emoji: '🔄' });
+
+    try {
+      const success = await forceSyncScene(pet, wallet.inscriptions);
+      if (success) {
+        setQuickSyncResult('success');
+        setNotification({ message: 'Scene synced to RP1!', emoji: '✅' });
+      } else {
+        setQuickSyncResult('error');
+        setNotification({ message: 'Sync failed - try copying manually', emoji: '⚠️' });
+      }
+    } catch {
+      setQuickSyncResult('error');
+      setNotification({ message: 'Sync error - check connection', emoji: '❌' });
+    }
+
+    setQuickSyncing(false);
+    setTimeout(() => {
+      setQuickSyncResult(null);
+      setNotification(null);
+    }, 3000);
+  };
+
   // 3D Kawaii Home Scene
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -75,16 +111,18 @@ export function HomeView() {
 
     let animationId: number;
     let cleanup = false;
+    let renderer: any = null;
+    let scene: any = null;
 
     (async () => {
       const THREE = await import('three');
 
-      const scene = new THREE.Scene();
+      scene = new THREE.Scene();
       const camera = new THREE.PerspectiveCamera(50, canvas.clientWidth / canvas.clientHeight, 0.1, 100);
       camera.position.set(0, 2.5, 5);
       camera.lookAt(0, 0.5, 0);
 
-      const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
+      renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
       renderer.setSize(canvas.clientWidth, canvas.clientHeight);
       renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
       renderer.setClearColor(0x0f0f23, 1);
@@ -310,6 +348,21 @@ export function HomeView() {
     return () => {
       cleanup = true;
       if (animationId) cancelAnimationFrame(animationId);
+      
+      // Dispose of WebGL renderer and release context
+      // This is critical to prevent WebGL context leaks when navigating between views
+      if (renderer) {
+        try {
+          renderer.dispose();
+          renderer.forceContextLoss();
+        } catch (e) {
+          console.warn('[HomeView] Error disposing renderer:', e);
+        }
+        renderer = null;
+      }
+      
+      // Clear scene reference
+      scene = null;
     };
   }, [pet.elementalType, pet.equippedOrdinal]);
 
@@ -382,6 +435,18 @@ export function HomeView() {
           {msfOnline !== null && (
             <span className={`text-xs ${msfOnline ? 'text-green-400' : 'text-yellow-400'}`}>
               {msfOnline ? '✅ MSF Online' : '⚠️ MSF Offline'}
+            </span>
+          )}
+          <button
+            onClick={handleQuickSync}
+            disabled={quickSyncing || !wallet.connected}
+            className="text-xs text-indigo-400 hover:text-indigo-300 underline ml-auto"
+          >
+            {quickSyncing ? '📡 Syncing...' : '⚡ Quick Sync'}
+          </button>
+          {quickSyncResult && (
+            <span className={`text-xs ${quickSyncResult === 'success' ? 'text-green-400' : 'text-red-400'}`}>
+              {quickSyncResult === 'success' ? '✅' : '❌'}
             </span>
           )}
         </div>

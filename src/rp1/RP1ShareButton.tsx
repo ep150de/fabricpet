@@ -10,6 +10,7 @@ import { useState } from 'react';
 import { useStore } from '../store/useStore';
 import { generateSceneJSONString } from './SceneJSONGenerator';
 import { pushSceneJSON, copySceneJSONToClipboard, checkMSFHealth } from './MVMFBridge';
+import { RP1_CONFIG } from '../utils/constants';
 
 type ShareMode = 'idle' | 'generating' | 'ready' | 'sharing' | 'shared' | 'error';
 
@@ -103,8 +104,10 @@ export function RP1ShareButton({ className = '' }: { className?: string }) {
   };
 
   const handleOpenRP1 = () => {
-    // RP1 deep link — opens in RP1 browser or Xverse browser
-    const deepLink = `https://enter.rp1.com?start_cid=104`;
+    // RP1 deep link — uses configured URL with proper coordinates
+    // This ensures the pet appears at the correct location in the RP1 world
+    const deepLink = RP1_CONFIG.fabricUrl;
+    console.log('[RP1Share] Opening RP1 with URL:', deepLink);
     window.open(deepLink, '_blank');
   };
 
@@ -120,6 +123,15 @@ export function RP1ShareButton({ className = '' }: { className?: string }) {
         <span className="text-lg">🌐</span>
         <span>Share Pet in RP1 Metaverse</span>
       </button>
+
+      {/* Warning when no ordinal is equipped */}
+      {!hasOrdinal && (
+        <div className="mt-2 text-xs text-amber-400 bg-amber-500/10 border border-amber-500/30 rounded-lg p-2">
+          ⚠️ No ordinal equipped - pet will appear as a default sphere in RP1.
+          <br />
+          Equip a 3D ordinal from your wallet for a custom pet model!
+        </div>
+      )}
 
       {/* Share Panel */}
       {showPanel && (

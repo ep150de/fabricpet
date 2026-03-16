@@ -24,7 +24,7 @@ import { startRP1Listener, stopRP1Listener } from './rp1/RP1Listener';
 import { Notification } from './components/Notification';
 
 export default function App() {
-  const { identity, setIdentity, pet, setPet, currentView, setView, isLoading, setLoading, notification, wallet, roster, setRoster } = useStore();
+  const { identity, setIdentity, pet, setPet, currentView, setView, isLoading, setLoading, notification, setNotification, wallet, roster, setRoster } = useStore();
 
   // Initialize identity and load pet state
   const initialize = useCallback(async () => {
@@ -180,8 +180,26 @@ export default function App() {
   // Auto-sync scene to RP1 when wallet inscriptions change
   useEffect(() => {
     if (!pet || !wallet.connected || wallet.inscriptions.length === 0) return;
-    scheduleSceneSync(pet, wallet.inscriptions);
-  }, [pet, wallet.connected, wallet.inscriptions]);
+    
+    scheduleSceneSync(
+      pet, 
+      wallet.inscriptions,
+      // onSyncStart
+      () => {
+        setNotification({ message: 'Syncing scene to RP1...', emoji: '🔄' });
+      },
+      // onSyncComplete
+      (success: boolean) => {
+        if (success) {
+          setNotification({ message: 'Scene synced to RP1!', emoji: '✅' });
+        } else {
+          setNotification({ message: 'Scene sync failed - use manual share', emoji: '⚠️' });
+        }
+        // Clear notification after 3 seconds
+        setTimeout(() => setNotification(null), 3000);
+      }
+    );
+  }, [pet, wallet.connected, wallet.inscriptions, setNotification]);
 
   // Auto-save to Nostr every 2 minutes (cross-device sync)
   useEffect(() => {

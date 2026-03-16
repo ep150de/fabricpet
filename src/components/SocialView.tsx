@@ -125,13 +125,25 @@ function LeaderboardTab() {
     }, 1000);
 
     try {
-      const data = await fetchLeaderboard(8000);
+      const data = await fetchLeaderboard(12000); // Increased timeout to 12s
       setEntries(data);
       if (data.length === 0) {
-        setError('No players found yet. Save your pet (it auto-saves every 2 min) and refresh!');
+        // Distinguish between "no data" and potential issues
+        const hasStoredPet = localStorage.getItem('fabricpet_pubkey');
+        if (hasStoredPet) {
+          setError('Leaderboard is empty! Try "Force Save" below to publish your pet, then refresh.');
+        } else {
+          setError('No pets found on Nostr relays yet. Create a pet and save it to appear here!');
+        }
       }
-    } catch {
-      setError('Failed to connect to Nostr relays. Check your internet and try again.');
+    } catch (e: any) {
+      console.error('[Leaderboard] Failed to load:', e);
+      // More specific error based on error type
+      if (e?.message?.includes('timeout')) {
+        setError('Relay connection timed out. Nostr relays may be slow - try again in a moment.');
+      } else {
+        setError('Failed to connect to Nostr relays. Check your internet connection and try again.');
+      }
     }
     clearInterval(timer);
     setLoading(false);

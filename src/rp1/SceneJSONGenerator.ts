@@ -93,6 +93,33 @@ export function generateSceneJSON(
       aBound: [1, 1, 1],
       aChildren: [],
     });
+  } else {
+    // No ordinal equipped - use default sphere representation
+    // Create a simple colored sphere using the pet's elemental type color
+    const elementColors: Record<string, string> = {
+      fire: '#ff6b6b',
+      water: '#6bc5ff',
+      earth: '#6bff6b',
+      air: '#c5c5ff',
+      light: '#ffff6b',
+      dark: '#9b6bff',
+      neutral: '#ffffff',
+    };
+    const petColor = elementColors[pet.elementalType] || '#ffffff';
+    
+    // Use a simple sphere primitive - RP1 Scene Assembler can render basic shapes
+    // For now, we'll use a placeholder URL that represents a sphere
+    // In the future, this could be a hosted glTF sphere model
+    children.push({
+      sName: `${pet.name} (FabricPet - Default)`,
+      pTransform: {
+        aPosition: petPosition,
+        aRotation: [0, 0, 0, 1],
+        aScale: [0.5, 0.5, 0.5],
+      },
+      aBound: [0.5, 0.5, 0.5],
+      aChildren: [],
+    });
   }
 
   // 2. Add 3D ordinal inscriptions from wallet
