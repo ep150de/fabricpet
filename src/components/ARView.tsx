@@ -15,6 +15,7 @@ import {
 } from '../llm/ChatEngine';
 import type { ChatEntry } from '../llm/ChatEngine';
 import { fetchInscriptionContent, categorizeContentType, load3DModelFromContent } from '../avatar/OrdinalRenderer';
+import { loadDefaultKitten } from '../avatar/AvatarLoader';
 import { createBattle, executeTurn, getBattleSummary } from '../battle/BattleEngine';
 import { TYPE_EFFECTIVENESS } from '../utils/constants';
 import { getMove } from '../engine/MoveDatabase';
@@ -845,153 +846,181 @@ export function ARView() {
        dirLight.position.set(2, 3, 2);
        scene.add(dirLight);
 
-       let petMesh: THREE.Mesh | null = null;
-       let petGeo: THREE.BufferGeometry | null = null;
-       let petMat: THREE.Material | null = null;
+        let petMesh: THREE.Object3D | null = null;
+        let petGeo: THREE.BufferGeometry | null = null;
+        let petMat: THREE.Material | null = null;
+        let isVRMModel = false;
 
-       // Check if we have an equipped ordinal that might be a 3D model
-       if (pet?.equippedOrdinal) {
-         try {
-           const content = await fetchInscriptionContent(pet.equippedOrdinal);
-           if (content) {
-             const category = categorizeContentType(content.contentType);
-             if (category === '3d-model') {
-               // Load 3D model from ordinal
-               const model = await load3DModelFromContent(content, scene, THREE);
-               if (model) {
-                 petMesh = model as THREE.Mesh;
-                 // Find the mesh in the loaded model (assuming it's the main mesh)
-                 if (petMesh && typeof petMesh === 'object' && 'children' in petMesh && Array.isArray(petMesh.children) && petMesh.children.length > 0) {
-                   // Get the first mesh child
-                   const firstMesh = petMesh.children.find(child => child && typeof child === 'object' && 'isMesh' in child && (child as any).isMesh) as THREE.Mesh | undefined;
-                   if (firstMesh) {
-                     petMesh = firstMesh;
-                   }
-                 }
-               } else {
-                 console.warn('[AR] Failed to load 3D model from ordinal, falling back to sphere');
-                 // Fall back to sphere
-                 const petColor = pet?.elementalType === 'fire' ? 0xff6b6b
-                   : pet?.elementalType === 'water' ? 0x6bc5ff
-                   : pet?.elementalType === 'earth' ? 0x6bff6b
-                   : pet?.elementalType === 'air' ? 0xc5c5ff
-                   : pet?.elementalType === 'light' ? 0xffff6b
-                   : pet?.elementalType === 'dark' ? 0x9b6bff
-                   : 0xffffff;
-                 petGeo = new THREE.SphereGeometry(0.4, 16, 16);
-                 petMat = new THREE.MeshToonMaterial({ color: petColor });
-                 petMesh = new THREE.Mesh(petGeo, petMat);
-                 petMesh.position.set(0, 0.5, 0);
-                 geometries.push(petGeo);
-                 materials.push(petMat);
-               }
-             } else {
-               // Not a 3D model, use image or fall back to sphere
-               const petColor = pet?.elementalType === 'fire' ? 0xff6b6b
-                 : pet?.elementalType === 'water' ? 0x6bc5ff
-                 : pet?.elementalType === 'earth' ? 0x6bff6b
-                 : pet?.elementalType === 'air' ? 0xc5c5ff
-                 : pet?.elementalType === 'light' ? 0xffff6b
-                 : pet?.elementalType === 'dark' ? 0x9b6bff
-                 : 0xffffff;
-               petGeo = new THREE.SphereGeometry(0.4, 16, 16);
-               petMat = new THREE.MeshToonMaterial({ color: petColor });
-               petMesh = new THREE.Mesh(petGeo, petMat);
-               petMesh.position.set(0, 0.5, 0);
-               geometries.push(petGeo);
-               materials.push(petMat);
-             }
-           } else {
-             console.warn('[AR] Failed to fetch ordinal content, falling back to sphere');
-             // Fall back to sphere
-             const petColor = pet?.elementalType === 'fire' ? 0xff6b6b
-               : pet?.elementalType === 'water' ? 0x6bc5ff
-               : pet?.elementalType === 'earth' ? 0x6bff6b
-               : pet?.elementalType === 'air' ? 0xc5c5ff
-               : pet?.elementalType === 'light' ? 0xffff6b
-               : pet?.elementalType === 'dark' ? 0x9b6bff
-               : 0xffffff;
-             petGeo = new THREE.SphereGeometry(0.4, 16, 16);
-             petMat = new THREE.MeshToonMaterial({ color: petColor });
-             petMesh = new THREE.Mesh(petGeo, petMat);
-             petMesh.position.set(0, 0.5, 0);
-             geometries.push(petGeo);
-             materials.push(petMat);
-           }
-         } catch (error) {
-           console.error('[AR] Error loading ordinal content:', error);
-           // Fall back to sphere on error
-           const petColor = pet?.elementalType === 'fire' ? 0xff6b6b
-             : pet?.elementalType === 'water' ? 0x6bc5ff
-             : pet?.elementalType === 'earth' ? 0x6bff6b
-             : pet?.elementalType === 'air' ? 0xc5c5ff
-             : pet?.elementalType === 'light' ? 0xffff6b
-             : pet?.elementalType === 'dark' ? 0x9b6bff
-             : 0xffffff;
-           petGeo = new THREE.SphereGeometry(0.4, 16, 16);
-           petMat = new THREE.MeshToonMaterial({ color: petColor });
-           petMesh = new THREE.Mesh(petGeo, petMat);
-           petMesh.position.set(0, 0.5, 0);
-           geometries.push(petGeo);
-           materials.push(petMat);
-         }
-       } else {
-         // No equipped ordinal, use default sphere
-         const petColor = pet?.elementalType === 'fire' ? 0xff6b6b
-           : pet?.elementalType === 'water' ? 0x6bc5ff
-           : pet?.elementalType === 'earth' ? 0x6bff6b
-           : pet?.elementalType === 'air' ? 0xc5c5ff
-           : pet?.elementalType === 'light' ? 0xffff6b
-           : pet?.elementalType === 'dark' ? 0x9b6bff
-           : 0xffffff;
-         petGeo = new THREE.SphereGeometry(0.4, 16, 16);
-         petMat = new THREE.MeshToonMaterial({ color: petColor });
-         petMesh = new THREE.Mesh(petGeo, petMat);
-         petMesh.position.set(0, 0.5, 0);
-         geometries.push(petGeo);
-         materials.push(petMat);
-       }
+        // Helper function to create a fallback sphere pet
+        const createSpherePet = () => {
+          const petColor = pet?.elementalType === 'fire' ? 0xff6b6b
+            : pet?.elementalType === 'water' ? 0x6bc5ff
+            : pet?.elementalType === 'earth' ? 0x6bff6b
+            : pet?.elementalType === 'air' ? 0xc5c5ff
+            : pet?.elementalType === 'light' ? 0xffff6b
+            : pet?.elementalType === 'dark' ? 0x9b6bff
+            : 0xffffff;
+          petGeo = new THREE.SphereGeometry(0.4, 16, 16);
+          petMat = new THREE.MeshToonMaterial({ color: petColor });
+          const mesh = new THREE.Mesh(petGeo, petMat);
+          mesh.position.set(0, 0.5, 0);
+          geometries.push(petGeo);
+          materials.push(petMat);
+          return mesh;
+        };
 
-       // Add pet to scene if we have a mesh
-       if (petMesh) {
-         scene.add(petMesh);
-       }
+        // Helper function to create a fallback kitten VRM
+        const createKittenVRM = async () => {
+          try {
+            const kitten = await loadDefaultKitten(scene);
+            if (kitten && typeof kitten === 'object') {
+              // Check if it's a VRM model or a THREE.Group
+              if ('scene' in kitten) {
+                // It's a VRM, return the scene
+                return (kitten as any).scene as THREE.Object3D;
+              } else {
+                // It's already a THREE.Object3D
+                return kitten as THREE.Object3D;
+              }
+            }
+          } catch (error) {
+            console.warn('[AR] Failed to load default kitten VRM:', error);
+          }
+          return null;
+        };
 
-       // Add eyes and other features only if we're using the default sphere
-       if (petGeo && petMat) {
-         // Only add detailed features for the default sphere pet
-         const eyeGeo = new THREE.SphereGeometry(0.06, 8, 8);
-         const eyeMat = new THREE.MeshBasicMaterial({ color: 0x000000 });
-         const leftEye = new THREE.Mesh(eyeGeo, eyeMat);
-         leftEye.position.set(-0.12, 0.5, 0.3);
-         scene.add(leftEye);
-         const rightEye = new THREE.Mesh(eyeGeo, eyeMat);
-         rightEye.position.set(0.12, 0.5, 0.3);
-         scene.add(rightEye);
-         geometries.push(eyeGeo);
-         materials.push(eyeMat);
+        // Check if we have an equipped ordinal that might be a 3D model
+        if (pet?.equippedOrdinal) {
+          try {
+            const content = await fetchInscriptionContent(pet.equippedOrdinal);
+            if (content) {
+              const category = categorizeContentType(content.contentType);
+              if (category === '3d-model') {
+                // Load 3D model from ordinal
+                const model = await load3DModelFromContent(content, scene, THREE);
+                if (model) {
+                  petMesh = model as THREE.Object3D;
+                  isVRMModel = true;
+                } else {
+                  console.warn('[AR] Failed to load 3D model from ordinal, falling back to default kitten');
+                  // Fall back to default kitten VRM
+                  petMesh = await createKittenVRM();
+                  if (!petMesh) {
+                    petMesh = createSpherePet();
+                  } else {
+                    isVRMModel = true;
+                  }
+                }
+              } else if (category === 'vrm') {
+                // Load VRM model directly
+                console.log('[AR] Loading VRM ordinal');
+                const kitten = await createKittenVRM();
+                if (kitten) {
+                  petMesh = kitten;
+                  isVRMModel = true;
+                } else {
+                  petMesh = createSpherePet();
+                }
+              } else {
+                // Not a 3D model, use default kitten
+                console.log('[AR] Ordinal is not a 3D model, loading default kitten VRM');
+                const kitten = await createKittenVRM();
+                if (kitten) {
+                  petMesh = kitten;
+                  isVRMModel = true;
+                } else {
+                  petMesh = createSpherePet();
+                }
+              }
+            } else {
+              console.warn('[AR] Failed to fetch ordinal content, falling back to default kitten');
+              const kitten = await createKittenVRM();
+              if (kitten) {
+                petMesh = kitten;
+                isVRMModel = true;
+              } else {
+                petMesh = createSpherePet();
+              }
+            }
+          } catch (error) {
+            console.error('[AR] Error loading ordinal content:', error);
+            // Fall back to default kitten on error
+            const kitten = await createKittenVRM();
+            if (kitten) {
+              petMesh = kitten;
+              isVRMModel = true;
+            } else {
+              petMesh = createSpherePet();
+            }
+          }
+        } else {
+          // No equipped ordinal, use default kitten VRM
+          console.log('[AR] No ordinal equipped, loading default kitten VRM');
+          const kitten = await createKittenVRM();
+          if (kitten) {
+            petMesh = kitten;
+            isVRMModel = true;
+          } else {
+            petMesh = createSpherePet();
+          }
+        }
 
-         // Optional highlights - can be removed for even better performance
-         const highlightGeo = new THREE.SphereGeometry(0.02, 4, 4);
-         const highlightMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
-         const lh = new THREE.Mesh(highlightGeo, highlightMat);
-         lh.position.set(-0.09, 0.52, 0.35);
-         scene.add(lh);
-         const rh = new THREE.Mesh(highlightGeo, highlightMat);
-         rh.position.set(0.09, 0.52, 0.35);
-         scene.add(rh);
-         geometries.push(highlightGeo);
-         materials.push(highlightMat);
+        // Add pet to scene if we have a mesh
+        if (petMesh) {
+          scene.add(petMesh);
+        }
 
-         const shadowGeo = new THREE.CircleGeometry(0.25, 16);
-         const shadowMat = new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.2 });
-         const shadow = new THREE.Mesh(shadowGeo, shadowMat);
-         shadow.rotation.x = -Math.PI / 2;
-         shadow.position.y = 0.01;
-         scene.add(shadow);
-         geometries.push(shadowGeo);
-         materials.push(shadowMat);
-       }
+        // Add eyes and other features only if we're using the default sphere (not VRM)
+        if (petGeo && petMat && !isVRMModel) {
+          // Only add detailed features for the default sphere pet
+          const eyeGeo = new THREE.SphereGeometry(0.06, 8, 8);
+          const eyeMat = new THREE.MeshBasicMaterial({ color: 0x000000 });
+          const leftEye = new THREE.Mesh(eyeGeo, eyeMat);
+          leftEye.position.set(-0.12, 0.5, 0.3);
+          leftEye.name = 'leftEye';
+          scene.add(leftEye);
+          const rightEye = new THREE.Mesh(eyeGeo, eyeMat);
+          rightEye.position.set(0.12, 0.5, 0.3);
+          rightEye.name = 'rightEye';
+          scene.add(rightEye);
+          geometries.push(eyeGeo);
+          materials.push(eyeMat);
+
+          // Optional highlights - can be removed for even better performance
+          const highlightGeo = new THREE.SphereGeometry(0.02, 4, 4);
+          const highlightMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+          const lh = new THREE.Mesh(highlightGeo, highlightMat);
+          lh.position.set(-0.09, 0.52, 0.35);
+          lh.name = 'lh';
+          scene.add(lh);
+          const rh = new THREE.Mesh(highlightGeo, highlightMat);
+          rh.position.set(0.09, 0.52, 0.35);
+          rh.name = 'rh';
+          scene.add(rh);
+          geometries.push(highlightGeo);
+          materials.push(highlightMat);
+
+          const shadowGeo = new THREE.CircleGeometry(0.25, 16);
+          const shadowMat = new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.2 });
+          const shadow = new THREE.Mesh(shadowGeo, shadowMat);
+          shadow.rotation.x = -Math.PI / 2;
+          shadow.position.y = 0.01;
+          shadow.name = 'shadow';
+          scene.add(shadow);
+          geometries.push(shadowGeo);
+          materials.push(shadowMat);
+        } else if (isVRMModel) {
+          // Add a shadow for VRM models
+          const shadowGeo = new THREE.CircleGeometry(0.25, 16);
+          const shadowMat = new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.2 });
+          const shadow = new THREE.Mesh(shadowGeo, shadowMat);
+          shadow.rotation.x = -Math.PI / 2;
+          shadow.position.y = 0.01;
+          shadow.name = 'shadow';
+          scene.add(shadow);
+          geometries.push(shadowGeo);
+          materials.push(shadowMat);
+        }
 
         // Interaction state
         let isInteracting = false;

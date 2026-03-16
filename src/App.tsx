@@ -205,10 +205,19 @@ export default function App() {
   useEffect(() => {
     if (!pet || !identity) return;
 
-    const nostrInterval = setInterval(() => {
+    // Save immediately when identity is loaded (first time or refresh)
+    if (identity.secretKey) {
       savePetState(identity, pet).then(ok => {
         if (ok) console.log('[AutoSave] Pet synced to Nostr relays');
       }).catch(() => {});
+    }
+
+    const nostrInterval = setInterval(() => {
+      if (identity.secretKey) {
+        savePetState(identity, pet).then(ok => {
+          if (ok) console.log('[AutoSave] Pet synced to Nostr relays');
+        }).catch(() => {});
+      }
     }, 120000); // 2 minutes
 
     return () => clearInterval(nostrInterval);

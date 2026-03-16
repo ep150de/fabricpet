@@ -154,5 +154,23 @@ export async function createPlaceholderPet(scene: THREE.Scene): Promise<THREE.Me
   return body;
 }
 
+// Default kitten VRM URL (Chubby Tubbies Cat from Open Source Avatars)
+// This is a cute, chubby cat avatar that works well as a default pet
+const DEFAULT_KITTEN_VRM_URL = 'https://arweave.net/T1gkB95XKXAZl_VmU1ozg5Txm--o9nY0Nge3s8zNoBs';
+
+/**
+ * Load the default kitten VRM model.
+ * This is a cute chubby cat avatar from Open Source Avatars.
+ */
+export async function loadDefaultKitten(scene: THREE.Scene): Promise<unknown> {
+  try {
+    console.log('[AvatarLoader] Loading default kitten VRM from:', DEFAULT_KITTEN_VRM_URL);
+    return await loadVRMModel(DEFAULT_KITTEN_VRM_URL, scene);
+  } catch (error) {
+    console.warn('[AvatarLoader] Failed to load default kitten, using placeholder:', error);
+    return createPlaceholderPet(scene);
+  }
+}
+
 // Type import for THREE namespace
 import type * as THREE from 'three';

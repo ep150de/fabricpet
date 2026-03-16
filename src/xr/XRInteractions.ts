@@ -8,7 +8,7 @@
 // - Physics-based ball throwing
 // ============================================
 
-import type * as THREE from 'three';
+import * as THREE from 'three';
 
 export interface XRInteractionState {
   // Hand tracking
@@ -51,8 +51,8 @@ export function createXRInteractionState(): XRInteractionState {
     leftHandPosition: null,
     rightHandPosition: null,
     currentGesture: null,
-    headPosition: new (require('three') as any).Vector3(0, 1.6, 0),
-    headDirection: new (require('three') as any).Vector3(0, 0, -1),
+    headPosition: new THREE.Vector3(0, 1.6, 0),
+    headDirection: new THREE.Vector3(0, 0, -1),
     isLookingAtPet: false,
     isInteracting: false,
     lastInteractionTime: 0,
@@ -155,7 +155,7 @@ export function isLookingAtPet(
   threshold: number = 0.8
 ): boolean {
   // Calculate direction from head to pet
-  const toPet = new (require('three') as any).Vector3()
+  const toPet = new THREE.Vector3()
     .subVectors(petPosition, headPosition)
     .normalize();
   
@@ -174,9 +174,9 @@ export function calculateThrowVelocity(
   prevHandPosition: THREE.Vector3,
   deltaTime: number
 ): THREE.Vector3 {
-  if (deltaTime <= 0) return new (require('three') as any).Vector3();
+  if (deltaTime <= 0) return new THREE.Vector3();
   
-  const velocity = new (require('three') as any).Vector3()
+  const velocity = new THREE.Vector3()
     .subVectors(handPosition, prevHandPosition)
     .divideScalar(deltaTime);
   
@@ -202,7 +202,7 @@ export function updateBallPhysics(
   velocity.y -= gravity * deltaTime;
   
   // Update position
-  const newPosition = new (require('three') as any).Vector3()
+  const newPosition = new THREE.Vector3()
     .copy(position)
     .add(velocity.clone().multiplyScalar(deltaTime));
   
