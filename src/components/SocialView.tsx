@@ -219,17 +219,25 @@ function LeaderboardTab() {
                     <span className="text-xs">{ELEMENT_EMOJI[entry.elementalType] || '⚪'}</span>
                   </div>
                   <div className="text-xs text-gray-500">
-                    Lv.{entry.petLevel} • {entry.pubkey.slice(0, 8)}...
+                    Lv.{entry.petLevel} • {entry.petXP} XP • {entry.pubkey.slice(0, 8)}...
                   </div>
                 </div>
                 <div className="text-right">
-                  <div className="text-sm font-bold">
-                    <span className="text-green-400">{entry.wins}W</span>
-                    <span className="text-gray-600 mx-1">/</span>
-                    <span className="text-red-400">{entry.losses}L</span>
+                  <div className="text-sm font-bold text-cyan-400">
+                    Score: {entry.score}
                   </div>
                   <div className="text-xs text-gray-500">
-                    {totalBattles > 0 ? `${Math.round(entry.winRate * 100)}%` : 'No battles'}
+                    {totalBattles > 0 ? (
+                      <span>
+                        <span className="text-green-400">{entry.wins}W</span>
+                        <span className="text-gray-600 mx-1">/</span>
+                        <span className="text-red-400">{entry.losses}L</span>
+                        <span className="text-gray-600 mx-1">/</span>
+                        <span className="text-gray-400">{Math.round(entry.winRate * 100)}%</span>
+                      </span>
+                    ) : (
+                      'No battles yet'
+                    )}
                   </div>
                 </div>
               </div>

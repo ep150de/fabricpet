@@ -1,5 +1,5 @@
 // ============================================
-// Leaderboard — Query Nostr for FabricPet battle results
+// Leaderboard — Query Nostr for FabricPet pet state
 // ============================================
 
 import { getPool, getRelays } from './relayManager';
@@ -9,19 +9,47 @@ export interface LeaderboardEntry {
   pubkey: string;
   petName: string;
   petLevel: number;
+  petXP: number;
   elementalType: string;
   wins: number;
   losses: number;
   draws: number;
   winRate: number;
+  score: number;
   lastSeen: number;
+  createdAt: number;
+}
+
+/**
+ * Calculate a score for ranking based on pet stats
+ */
+function calculateScore(entry: LeaderboardEntry): number {
+  let score = 0;
+  
+  // Level is most important (0-100 points, 2 points per level)
+  score += entry.petLevel * 2;
+  
+  // XP bonus (0-50 points)
+  score += Math.min(entry.petXP / 100, 50);
+  
+  // Longevity bonus (0-30 points, 1 point per day)
+  const daysSinceCreation = (Date.now() - entry.createdAt) / (1000 * 60 * 60 * 24);
+  score += Math.min(daysSinceCreation, 30);
+  
+  // Win rate bonus (0-20 points)
+  const totalBattles = entry.wins + entry.losses;
+  if (totalBattles > 0) {
+    score += (entry.wins / totalBattles) * 20;
+  }
+  
+  return Math.round(score);
 }
 
 /**
  * Fetch leaderboard data from Nostr relays using SimplePool.
- * Queries NIP-78 pet state events and aggregates battle records.
+ * Queries NIP-78 pet state events and aggregates pet stats.
  * 
- * Uses the same SimplePool as petStorage for reliable connections.
+ * Simplified to focus on pet level, XP, and longevity.
  */
 export async function fetchLeaderboard(timeoutMs: number = 12000): Promise<LeaderboardEntry[]> {
   const pool = getPool();
@@ -40,20 +68,21 @@ export async function fetchLeaderboard(timeoutMs: number = 12000): Promise<Leade
       if (resolved) return;
       resolved = true;
 
-      // Calculate win rates and sort
+      // Calculate scores and sort
       const leaderboard = Array.from(entries.values()).map((entry) => {
         const total = entry.wins + entry.losses + entry.draws;
         return {
           ...entry,
           winRate: total > 0 ? entry.wins / total : 0,
+          score: calculateScore(entry),
         };
       });
 
-      // Sort by wins, then win rate, then level
+      // Sort by score, then by level, then by XP
       leaderboard.sort((a, b) => {
-        if (b.wins !== a.wins) return b.wins - a.wins;
-        if (b.winRate !== a.winRate) return b.winRate - a.winRate;
-        return b.petLevel - a.petLevel;
+        if (b.score !== a.score) return b.score - a.score;
+        if (b.petLevel !== a.petLevel) return b.petLevel - a.petLevel;
+        return b.petXP - a.petXP;
       });
 
       console.log(`[Leaderboard] Found ${leaderboard.length} players from ${eoseCount} relays`);
@@ -83,12 +112,15 @@ export async function fetchLeaderboard(timeoutMs: number = 12000): Promise<Leade
                 pubkey: event.pubkey,
                 petName: pet.name,
                 petLevel: pet.level || 1,
+                petXP: pet.xp || 0,
                 elementalType: pet.elementalType || 'neutral',
                 wins: pet.battleRecord?.wins || 0,
                 losses: pet.battleRecord?.losses || 0,
                 draws: pet.battleRecord?.draws || 0,
                 winRate: 0,
+                score: 0,
                 lastSeen: eventTime,
+                createdAt: pet.createdAt || eventTime,
               });
             }
           } catch { /* skip invalid */ }

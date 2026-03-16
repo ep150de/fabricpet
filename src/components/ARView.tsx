@@ -135,38 +135,97 @@ export function ARView() {
         dirLight.position.set(2, 3, 2);
         scene.add(dirLight);
 
-        // Pet sphere
-        const petColor = pet?.elementalType === 'fire' ? 0xff6b6b
-          : pet?.elementalType === 'water' ? 0x6bc5ff
-          : pet?.elementalType === 'earth' ? 0x6bff6b
-          : pet?.elementalType === 'air' ? 0xc5c5ff
-          : pet?.elementalType === 'light' ? 0xffff6b
-          : pet?.elementalType === 'dark' ? 0x9b6bff
-          : 0xffffff;
+        // --- Load Pet Model (VRM, Ordinal, or Sphere) ---
+        let petMesh: THREE.Object3D = new THREE.Object3D(); // Default empty object
+        let vrmModel: any = null;
+        let isVRM = false;
+        let petGeo: THREE.BufferGeometry | null = null;
+        let petMat: THREE.Material | null = null;
+        
+        // Try to load VRM model from avatarId first
+        if (pet?.avatarId) {
+          try {
+            const avatar = await getAvatarById(pet.avatarId);
+            if (avatar?.modelFileUrl) {
+              console.log('[XR] Loading VRM model from avatarId:', avatar.modelFileUrl);
+              vrmModel = await loadVRMModel(avatar.modelFileUrl, scene);
+              if (vrmModel?.scene) {
+                petMesh = vrmModel.scene;
+                petMesh.position.set(0, 0, -1); // Position in front of user
+                petMesh.scale.set(0.3, 0.3, 0.3); // Scale down for XR
+                scene.add(petMesh);
+                isVRM = true;
+                console.log('[XR] VRM model loaded successfully');
+              }
+            }
+          } catch (e) {
+            console.warn('[XR] Failed to load VRM model, trying ordinal:', e);
+          }
+        }
+        
+        // If no VRM, try ordinal 3D model
+        if (!isVRM && pet?.equippedOrdinal) {
+          try {
+            const content = await fetchInscriptionContent(pet.equippedOrdinal);
+            if (content) {
+              const category = categorizeContentType(content.contentType);
+              if (category === '3d-model') {
+                const model = await load3DModelFromContent(content, scene, THREE);
+                if (model) {
+                  petMesh = model as THREE.Object3D;
+                  petMesh.position.set(0, 0, -1);
+                  petMesh.scale.set(0.3, 0.3, 0.3);
+                  scene.add(petMesh);
+                  isVRM = true; // Treat as VRM for animation purposes
+                  console.log('[XR] Ordinal 3D model loaded successfully');
+                }
+              }
+            }
+          } catch (e) {
+            console.warn('[XR] Failed to load ordinal model, using sphere:', e);
+          }
+        }
+        
+        // Fallback to sphere pet if no model loaded
+        if (!isVRM) {
+          // Pet sphere
+          const petColor = pet?.elementalType === 'fire' ? 0xff6b6b
+            : pet?.elementalType === 'water' ? 0x6bc5ff
+            : pet?.elementalType === 'earth' ? 0x6bff6b
+            : pet?.elementalType === 'air' ? 0xc5c5ff
+            : pet?.elementalType === 'light' ? 0xffff6b
+            : pet?.elementalType === 'dark' ? 0x9b6bff
+            : 0xffffff;
 
-        const petGeo = new THREE.SphereGeometry(0.15, 32, 32);
-        const petMat = new THREE.MeshToonMaterial({ color: petColor });
-        const petMesh = new THREE.Mesh(petGeo, petMat);
-        petMesh.position.set(0, 0.3, -1); // 1 meter in front, 30cm above floor
-        scene.add(petMesh);
+          petGeo = new THREE.SphereGeometry(0.15, 32, 32);
+          petMat = new THREE.MeshToonMaterial({ color: petColor });
+          petMesh = new THREE.Mesh(petGeo, petMat);
+          petMesh.position.set(0, 0.3, -1); // 1 meter in front, 30cm above floor
+          scene.add(petMesh);
+          
+          // Eyes
+          const eyeGeo = new THREE.SphereGeometry(0.03, 16, 16);
+          const eyeMat = new THREE.MeshBasicMaterial({ color: 0x000000 });
+          const leftEye = new THREE.Mesh(eyeGeo, eyeMat);
+          leftEye.position.set(-0.06, 0.34, -0.86);
+          leftEye.name = 'xrLeftEye';
+          scene.add(leftEye);
+          const rightEye = new THREE.Mesh(eyeGeo, eyeMat);
+          rightEye.position.set(0.06, 0.34, -0.86);
+          rightEye.name = 'xrRightEye';
+          scene.add(rightEye);
 
-        // Eyes
-        const eyeGeo = new THREE.SphereGeometry(0.03, 16, 16);
-        const eyeMat = new THREE.MeshBasicMaterial({ color: 0x000000 });
-        const leftEye = new THREE.Mesh(eyeGeo, eyeMat);
-        leftEye.position.set(-0.06, 0.34, -0.86);
-        scene.add(leftEye);
-        const rightEye = new THREE.Mesh(eyeGeo, eyeMat);
-        rightEye.position.set(0.06, 0.34, -0.86);
-        scene.add(rightEye);
-
-        // Shadow
-        const shadowGeo = new THREE.CircleGeometry(0.12, 32);
-        const shadowMat = new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.2 });
-        const shadow = new THREE.Mesh(shadowGeo, shadowMat);
-        shadow.rotation.x = -Math.PI / 2;
-        shadow.position.set(0, 0.01, -1);
-        scene.add(shadow);
+          // Shadow
+          const shadowGeo = new THREE.CircleGeometry(0.12, 32);
+          const shadowMat = new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.2 });
+          const shadow = new THREE.Mesh(shadowGeo, shadowMat);
+          shadow.rotation.x = -Math.PI / 2;
+          shadow.position.set(0, 0.01, -1);
+          shadow.name = 'xrShadow';
+          scene.add(shadow);
+          
+          console.log('[XR] Using fallback sphere pet');
+        }
 
         // Ball for throwing interaction
         const ballGeo = new THREE.SphereGeometry(0.05, 16, 16);
@@ -354,18 +413,27 @@ export function ARView() {
             petMesh.scale.lerp(new THREE.Vector3(1, 1, 1), 0.1);
           }
           
-          // Update eye positions
-          leftEye.position.y = petMesh.position.y + 0.04;
-          rightEye.position.y = petMesh.position.y + 0.04;
+          // Update eye positions if they exist (only for sphere pet)
+          const leftEye = scene.getObjectByName('xrLeftEye');
+          const rightEye = scene.getObjectByName('xrRightEye');
+          if (leftEye && rightEye && petMesh) {
+            leftEye.position.y = petMesh.position.y + 0.04;
+            rightEye.position.y = petMesh.position.y + 0.04;
+          }
           
-          // Squash/stretch
+          // Squash/stretch only for sphere pet
           const squash = 1 + Math.sin(t * 4) * 0.05;
-          if (!petReaction) {
+          if (!petReaction && !isVRM) {
             petMesh.scale.set(1 / squash, squash, 1 / squash);
           }
           
-          // Shadow
-          shadow.scale.setScalar(1 - Math.abs(Math.sin(t * 2)) * 0.2);
+          // Update shadow if it exists
+          const shadow = scene.getObjectByName('xrShadow');
+          if (shadow && petMesh) {
+            shadow.position.x = petMesh.position.x;
+            shadow.position.z = petMesh.position.z;
+            shadow.scale.setScalar(1 - Math.abs(Math.sin(t * 2)) * 0.2);
+          }
 
           // === BALL PHYSICS ===
           if (ballInFlight) {
@@ -406,14 +474,24 @@ export function ARView() {
           xrSessionRef.current = null;
           renderer.setAnimationLoop(null);
           renderer.dispose();
-          petGeo.dispose();
-          petMat.dispose();
-          eyeGeo.dispose();
-          eyeMat.dispose();
-          shadowGeo.dispose();
-          shadowMat.dispose();
+          if (petGeo) petGeo.dispose();
+          if (petMat) petMat.dispose();
           ballGeo.dispose();
           ballMat.dispose();
+          
+          // Clean up scene objects
+          scene.traverse((obj) => {
+            if (obj instanceof THREE.Mesh) {
+              if (obj.geometry) obj.geometry.dispose();
+              if (obj.material) {
+                if (Array.isArray(obj.material)) {
+                  obj.material.forEach(m => m.dispose());
+                } else {
+                  obj.material.dispose();
+                }
+              }
+            }
+          });
         });
 
         console.log('[AR] WebXR immersive-ar session started with interactions');
