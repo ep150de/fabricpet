@@ -19,6 +19,15 @@ import { createBattle, executeTurn, getBattleSummary } from '../battle/BattleEng
 import { TYPE_EFFECTIVENESS } from '../utils/constants';
 import { getMove } from '../engine/MoveDatabase';
 import type { BattleState, BattleStats, ElementalType, Move } from '../types';
+import { 
+  detectGesture, 
+  getReactionForGesture, 
+  isLookingAtPet, 
+  calculateThrowVelocity,
+  updateBallPhysics,
+  type GestureType,
+  type XRPetReaction 
+} from '../xr/XRInteractions';
 
 type ARMode = 'camera' | 'webxr';
 
@@ -185,105 +194,324 @@ export function ARView() {
        return;
      }
 
-     try {
-       setError(null);
-       const xr = (navigator as any).xr;
-       const session = await xr.requestSession('immersive-ar', {
-         requiredFeatures: ['local-floor'],
-         optionalFeatures: ['hit-test', 'hand-tracking'],
-       });
+      try {
+        setError(null);
+        const xr = (navigator as any).xr;
+        const session = await xr.requestSession('immersive-ar', {
+          requiredFeatures: ['local-floor'],
+          optionalFeatures: ['hit-test', 'hand-tracking'],
+        });
 
-       xrSessionRef.current = session;
-       setWebxrActive(true);
+        xrSessionRef.current = session;
+        setWebxrActive(true);
 
-       // Create WebXR-compatible renderer
-       const canvas = document.createElement('canvas');
-       const gl = canvas.getContext('webgl2', { xrCompatible: true }) || canvas.getContext('webgl', { xrCompatible: true });
-       if (!gl) { setError('WebGL not available for WebXR'); return; }
+        // Create WebXR-compatible renderer
+        const canvas = document.createElement('canvas');
+        const gl = canvas.getContext('webgl2', { xrCompatible: true }) || canvas.getContext('webgl', { xrCompatible: true });
+        if (!gl) { setError('WebGL not available for WebXR'); return; }
 
-       const renderer = new THREE.WebGLRenderer({ canvas, context: gl as any, alpha: true, antialias: true });
-       renderer.xr.enabled = true;
-       renderer.xr.setReferenceSpaceType('local-floor');
-       await renderer.xr.setSession(session);
+        const renderer = new THREE.WebGLRenderer({ canvas, context: gl as any, alpha: true, antialias: true });
+        renderer.xr.enabled = true;
+        renderer.xr.setReferenceSpaceType('local-floor');
+        await renderer.xr.setSession(session);
 
-       const scene = new THREE.Scene();
-       const camera = new THREE.PerspectiveCamera(70, 1, 0.01, 100);
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(70, 1, 0.01, 100);
 
-       // Lighting
-       scene.add(new THREE.AmbientLight(0xffffff, 0.6));
-       const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
-       dirLight.position.set(2, 3, 2);
-       scene.add(dirLight);
+        // Lighting
+        scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+        const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        dirLight.position.set(2, 3, 2);
+        scene.add(dirLight);
 
-       // Pet sphere
-       const petColor = pet?.elementalType === 'fire' ? 0xff6b6b
-         : pet?.elementalType === 'water' ? 0x6bc5ff
-         : pet?.elementalType === 'earth' ? 0x6bff6b
-         : pet?.elementalType === 'air' ? 0xc5c5ff
-         : pet?.elementalType === 'light' ? 0xffff6b
-         : pet?.elementalType === 'dark' ? 0x9b6bff
-         : 0xffffff;
+        // Pet sphere
+        const petColor = pet?.elementalType === 'fire' ? 0xff6b6b
+          : pet?.elementalType === 'water' ? 0x6bc5ff
+          : pet?.elementalType === 'earth' ? 0x6bff6b
+          : pet?.elementalType === 'air' ? 0xc5c5ff
+          : pet?.elementalType === 'light' ? 0xffff6b
+          : pet?.elementalType === 'dark' ? 0x9b6bff
+          : 0xffffff;
 
-       const petGeo = new THREE.SphereGeometry(0.15, 32, 32);
-       const petMat = new THREE.MeshToonMaterial({ color: petColor });
-       const petMesh = new THREE.Mesh(petGeo, petMat);
-       petMesh.position.set(0, 0.3, -1); // 1 meter in front, 30cm above floor
-       scene.add(petMesh);
+        const petGeo = new THREE.SphereGeometry(0.15, 32, 32);
+        const petMat = new THREE.MeshToonMaterial({ color: petColor });
+        const petMesh = new THREE.Mesh(petGeo, petMat);
+        petMesh.position.set(0, 0.3, -1); // 1 meter in front, 30cm above floor
+        scene.add(petMesh);
 
-       // Eyes
-       const eyeGeo = new THREE.SphereGeometry(0.03, 16, 16);
-       const eyeMat = new THREE.MeshBasicMaterial({ color: 0x000000 });
-       const leftEye = new THREE.Mesh(eyeGeo, eyeMat);
-       leftEye.position.set(-0.06, 0.34, -0.86);
-       scene.add(leftEye);
-       const rightEye = new THREE.Mesh(eyeGeo, eyeMat);
-       rightEye.position.set(0.06, 0.34, -0.86);
-       scene.add(rightEye);
+        // Eyes
+        const eyeGeo = new THREE.SphereGeometry(0.03, 16, 16);
+        const eyeMat = new THREE.MeshBasicMaterial({ color: 0x000000 });
+        const leftEye = new THREE.Mesh(eyeGeo, eyeMat);
+        leftEye.position.set(-0.06, 0.34, -0.86);
+        scene.add(leftEye);
+        const rightEye = new THREE.Mesh(eyeGeo, eyeMat);
+        rightEye.position.set(0.06, 0.34, -0.86);
+        scene.add(rightEye);
 
-       // Shadow
-       const shadowGeo = new THREE.CircleGeometry(0.12, 32);
-       const shadowMat = new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.2 });
-       const shadow = new THREE.Mesh(shadowGeo, shadowMat);
-       shadow.rotation.x = -Math.PI / 2;
-       shadow.position.set(0, 0.01, -1);
-       scene.add(shadow);
+        // Shadow
+        const shadowGeo = new THREE.CircleGeometry(0.12, 32);
+        const shadowMat = new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.2 });
+        const shadow = new THREE.Mesh(shadowGeo, shadowMat);
+        shadow.rotation.x = -Math.PI / 2;
+        shadow.position.set(0, 0.01, -1);
+        scene.add(shadow);
 
-       // XR render loop
-       renderer.setAnimationLoop((_time, frame) => {
-         const t = Date.now() * 0.001;
-         // Bounce
-         petMesh.position.y = 0.3 + Math.abs(Math.sin(t * 2)) * 0.06;
-         leftEye.position.y = petMesh.position.y + 0.04;
-         rightEye.position.y = petMesh.position.y + 0.04;
-         // Squash/stretch
-         const squash = 1 + Math.sin(t * 4) * 0.05;
-         petMesh.scale.set(1 / squash, squash, 1 / squash);
-         shadow.scale.setScalar(1 - Math.abs(Math.sin(t * 2)) * 0.2);
+        // Ball for throwing interaction
+        const ballGeo = new THREE.SphereGeometry(0.05, 16, 16);
+        const ballMat = new THREE.MeshStandardMaterial({ color: 0xff6b6b, roughness: 0.3 });
+        const ball = new THREE.Mesh(ballGeo, ballMat);
+        ball.position.set(0.5, 0.5, -0.5);
+        ball.visible = false; // Hidden until thrown
+        scene.add(ball);
 
-         renderer.render(scene, camera);
-       });
+        // Interaction state
+        let handTrackingAvailable = false;
+        let currentGesture: GestureType = 'none';
+        let lastGesture: GestureType = 'none';
+        let lastInteractionTime = 0;
+        let petReaction: XRPetReaction | null = null;
+        let reactionEndTime = 0;
+        let ballInFlight = false;
+        let ballVelocity = new THREE.Vector3();
+        let previousHandPosition = new THREE.Vector3();
+        let throwDetected = false;
 
-       // Cleanup on session end
-       session.addEventListener('end', () => {
-         setWebxrActive(false);
-         xrSessionRef.current = null;
-         renderer.setAnimationLoop(null);
-         renderer.dispose();
-         petGeo.dispose();
-         petMat.dispose();
-         eyeGeo.dispose();
-         eyeMat.dispose();
-         shadowGeo.dispose();
-         shadowMat.dispose();
-       });
+        // Check for hand tracking support
+        try {
+          // Hand tracking is available if the session was created with it
+          handTrackingAvailable = session.inputSources?.some(
+            (inputSource: any) => inputSource.hand != null
+          ) || false;
+          console.log('[XR] Hand tracking available:', handTrackingAvailable);
+        } catch (e) {
+          console.log('[XR] Hand tracking check failed:', e);
+        }
 
-       console.log('[AR] WebXR immersive-ar session started');
-     } catch (e: any) {
-       setError(`WebXR error: ${e?.message || 'Failed to start session'}`);
-       console.error('[AR] WebXR error:', e);
-       setWebxrActive(false);
-     }
-   }, [pet]);
+        // XR render loop with interactions
+        let prevTime = performance.now();
+        renderer.setAnimationLoop((time, frame) => {
+          const t = time * 0.001;
+          const deltaTime = (time - prevTime) / 1000;
+          prevTime = time;
+
+          // Get reference space for transforms
+          const referenceSpace = renderer.xr.getReferenceSpace();
+          
+          // === GAZE INTERACTION ===
+          // Get head position and direction from camera
+          if (frame && referenceSpace) {
+            const pose = frame.getViewerPose(referenceSpace);
+            if (pose) {
+              const headPos = new THREE.Vector3(
+                pose.transform.position.x,
+                pose.transform.position.y,
+                pose.transform.position.z
+              );
+              
+              // Get head direction from camera
+              const headDir = new THREE.Vector3(0, 0, -1);
+              headDir.applyQuaternion(new THREE.Quaternion(
+                pose.transform.orientation.x,
+                pose.transform.orientation.y,
+                pose.transform.orientation.z,
+                pose.transform.orientation.w
+              ));
+              
+              // Check if looking at pet
+              const lookingAtPet = isLookingAtPet(headPos, headDir, petMesh.position, 0.7);
+              
+              // If looking at pet, pet looks back
+              if (lookingAtPet) {
+                // Calculate direction to head
+                const toHead = new THREE.Vector3()
+                  .subVectors(headPos, petMesh.position)
+                  .normalize();
+                
+                // Smoothly rotate pet to face user
+                const targetAngle = Math.atan2(toHead.x, toHead.z);
+                petMesh.rotation.y += (targetAngle - petMesh.rotation.y) * 0.05;
+              }
+            }
+          }
+
+          // === HAND TRACKING ===
+          if (handTrackingAvailable && frame) {
+            const inputSources = session.inputSources;
+            
+            for (const inputSource of inputSources) {
+              if (inputSource.hand) {
+                // Get hand joints
+                const hand = inputSource.hand;
+                
+                // Detect gesture
+                const gesture = detectGesture(hand);
+                
+                // Check for gesture change (with cooldown)
+                const now = Date.now();
+                if (gesture !== lastGesture && gesture !== 'none' && now - lastInteractionTime > 1000) {
+                  currentGesture = gesture;
+                  lastInteractionTime = now;
+                  
+                  // Get reaction for this gesture
+                  petReaction = getReactionForGesture(gesture);
+                  reactionEndTime = now + petReaction.duration;
+                  
+                  console.log('[XR] Gesture detected:', gesture, 'Reaction:', petReaction.animation);
+                  
+                  // Handle ball throw (pinch gesture releases ball)
+                  if (gesture === 'pinch' && !ballInFlight) {
+                    // Get hand position for throw
+                    const wrist = hand.joints['wrist'];
+                    if (wrist) {
+                      const handPos = new THREE.Vector3(
+                        wrist.position.x,
+                        wrist.position.y,
+                        wrist.position.z
+                      );
+                      
+                      // Calculate throw velocity
+                      if (previousHandPosition.length() > 0) {
+                        ballVelocity = calculateThrowVelocity(handPos, previousHandPosition, deltaTime);
+                        ball.position.copy(handPos);
+                        ball.visible = true;
+                        ballInFlight = true;
+                        throwDetected = true;
+                        console.log('[XR] Ball thrown!', ballVelocity);
+                      }
+                      
+                      previousHandPosition.copy(handPos);
+                    }
+                  }
+                }
+                
+                lastGesture = gesture;
+                
+                // Update hand position for throw calculation
+                const wrist = hand.joints['wrist'];
+                if (wrist) {
+                  previousHandPosition.set(
+                    wrist.position.x,
+                    wrist.position.y,
+                    wrist.position.z
+                  );
+                }
+              }
+            }
+          }
+
+          // === PET ANIMATION ===
+          // Base bounce animation
+          const bounceHeight = 0.06;
+          const bounceSpeed = 2;
+          petMesh.position.y = 0.3 + Math.abs(Math.sin(t * bounceSpeed)) * bounceHeight;
+          
+          // Apply pet reaction animations
+          if (petReaction && Date.now() < reactionEndTime) {
+            switch (petReaction.animation) {
+              case 'wave':
+                // Wave animation - side to side rotation
+                petMesh.rotation.z = Math.sin(t * 8) * 0.3;
+                break;
+              case 'happy':
+                // Happy jump - higher bounce
+                petMesh.position.y += Math.abs(Math.sin(t * 6)) * 0.1;
+                petMesh.scale.set(
+                  1 + Math.sin(t * 8) * 0.1,
+                  1 - Math.sin(t * 8) * 0.1,
+                  1
+                );
+                break;
+              case 'look':
+                // Look animation - rotate to face user
+                // Already handled in gaze section
+                break;
+              case 'play':
+                // Play animation - spinning
+                petMesh.rotation.y += deltaTime * 5;
+                break;
+              case 'hide':
+                // Hide animation - shrink down
+                petMesh.scale.setScalar(0.5 + Math.sin(t * 4) * 0.3);
+                petMesh.position.y = 0.1;
+                break;
+            }
+          } else {
+            // Reset to idle animation
+            petReaction = null;
+            petMesh.rotation.z *= 0.9; // Smoothly return to upright
+            petMesh.scale.lerp(new THREE.Vector3(1, 1, 1), 0.1);
+          }
+          
+          // Update eye positions
+          leftEye.position.y = petMesh.position.y + 0.04;
+          rightEye.position.y = petMesh.position.y + 0.04;
+          
+          // Squash/stretch
+          const squash = 1 + Math.sin(t * 4) * 0.05;
+          if (!petReaction) {
+            petMesh.scale.set(1 / squash, squash, 1 / squash);
+          }
+          
+          // Shadow
+          shadow.scale.setScalar(1 - Math.abs(Math.sin(t * 2)) * 0.2);
+
+          // === BALL PHYSICS ===
+          if (ballInFlight) {
+            const physics = updateBallPhysics(ball.position, ballVelocity, deltaTime);
+            ball.position.copy(physics.position);
+            ballVelocity.copy(physics.velocity);
+            
+            // Rotate ball while in flight
+            ball.rotation.x += deltaTime * 10;
+            ball.rotation.z += deltaTime * 5;
+            
+            // Check if ball stopped
+            if (physics.grounded && ballVelocity.length() < 0.1) {
+              ballInFlight = false;
+              ball.visible = false;
+              throwDetected = false;
+              console.log('[XR] Ball stopped');
+            }
+            
+            // Check if pet catches ball (within range)
+            const distToPet = ball.position.distanceTo(petMesh.position);
+            if (distToPet < 0.3 && ballInFlight) {
+              // Pet "catches" ball
+              ballInFlight = false;
+              ball.visible = false;
+              petReaction = { animation: 'happy', duration: 1000, sound: 'happy' };
+              reactionEndTime = Date.now() + 1000;
+              console.log('[XR] Pet caught the ball!');
+            }
+          }
+
+          renderer.render(scene, camera);
+        });
+
+        // Cleanup on session end
+        session.addEventListener('end', () => {
+          setWebxrActive(false);
+          xrSessionRef.current = null;
+          renderer.setAnimationLoop(null);
+          renderer.dispose();
+          petGeo.dispose();
+          petMat.dispose();
+          eyeGeo.dispose();
+          eyeMat.dispose();
+          shadowGeo.dispose();
+          shadowMat.dispose();
+          ballGeo.dispose();
+          ballMat.dispose();
+        });
+
+        console.log('[AR] WebXR immersive-ar session started with interactions');
+      } catch (e: any) {
+        setError(`WebXR error: ${e?.message || 'Failed to start session'}`);
+        console.error('[AR] WebXR error:', e);
+        setWebxrActive(false);
+      }
+    }, [pet]);
 
   const stopWebXR = useCallback(() => {
     if (xrSessionRef.current) {
