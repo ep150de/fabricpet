@@ -6,19 +6,19 @@
   --color-secondary: #ec4899;
   --color-accent: #f59e0b;
   
-  /* Matrix Terminal Theme */
-  --terminal-green: #00ff00;
-  --terminal-green-dim: #00cc00;
-  --terminal-green-bright: #33ff33;
+  /* Matrix Terminal Theme - Cyan */
+  --terminal-cyan: #00ffff;
+  --terminal-cyan-dim: #00cccc;
+  --terminal-cyan-bright: #33ffff;
   --terminal-bg: #0a0a0a;
   --terminal-bg-light: #111111;
   --terminal-bg-card: #0d0d0d;
-  --terminal-text: #00ff00;
-  --terminal-text-dim: #008800;
+  --terminal-text: #00ffff;
+  --terminal-text-dim: #008888;
   --terminal-warning: #ffcc00;
   --terminal-error: #ff3333;
   --terminal-success: #33ff33;
-  --terminal-border: #00ff0033;
+  --terminal-border: #00ffff33;
   
   /* Legacy colors for compatibility */
   --color-bg-dark: var(--terminal-bg);
@@ -87,22 +87,22 @@ body {
 
 /* Glow effects */
 .glow-green {
-  text-shadow: 0 0 5px var(--terminal-green), 0 0 10px var(--terminal-green-dim);
+  text-shadow: 0 0 5px var(--terminal-cyan), 0 0 10px var(--terminal-cyan-dim);
 }
 
 .glow-box {
-  box-shadow: 0 0 5px var(--terminal-green), 0 0 10px var(--terminal-green-dim);
+  box-shadow: 0 0 5px var(--terminal-cyan), 0 0 10px var(--terminal-cyan-dim);
 }
 
 /* Terminal text effects */
 .terminal-text {
   color: var(--terminal-text);
-  text-shadow: 0 0 5px var(--terminal-green-dim);
+  text-shadow: 0 0 5px var(--terminal-cyan-dim);
 }
 
 .terminal-prompt::before {
   content: "> ";
-  color: var(--terminal-green-bright);
+  color: var(--terminal-cyan-bright);
 }
 
 /* 3D Canvas */
@@ -124,7 +124,7 @@ body {
 .status-bar-fill {
   height: 100%;
   transition: width 0.5s ease;
-  background: var(--terminal-green);
+  background: var(--terminal-cyan);
 }
 
 /* Terminal-style button */
@@ -139,9 +139,9 @@ body {
 }
 
 .terminal-btn:hover {
-  background: var(--terminal-green);
+  background: var(--terminal-cyan);
   color: var(--terminal-bg);
-  box-shadow: 0 0 10px var(--terminal-green);
+  box-shadow: 0 0 10px var(--terminal-cyan);
 }
 
 .terminal-btn:active {
@@ -159,8 +159,8 @@ body {
 
 .terminal-input:focus {
   outline: none;
-  border-color: var(--terminal-green);
-  box-shadow: 0 0 5px var(--terminal-green);
+  border-color: var(--terminal-cyan);
+  box-shadow: 0 0 5px var(--terminal-cyan);
 }
 
 /* Battle animations */
@@ -176,8 +176,8 @@ body {
 }
 
 @keyframes pulse-glow {
-  0%, 100% { box-shadow: 0 0 5px var(--terminal-green); }
-  50% { box-shadow: 0 0 20px var(--terminal-green-bright); }
+  0%, 100% { box-shadow: 0 0 5px var(--terminal-cyan); }
+  50% { box-shadow: 0 0 20px var(--terminal-cyan-bright); }
 }
 
 @keyframes float {
@@ -215,26 +215,26 @@ body {
 /* Phosphor glow text */
 .phosphor-glow {
   text-shadow: 
-    0 0 2px var(--terminal-green),
-    0 0 4px var(--terminal-green-dim),
-    0 0 8px var(--terminal-green-dim);
+    0 0 2px var(--terminal-cyan),
+    0 0 4px var(--terminal-cyan-dim),
+    0 0 8px var(--terminal-cyan-dim);
 }
 
 /* Retro button pressed state */
 .retro-btn {
   position: relative;
   background: var(--terminal-bg-light);
-  border: 2px solid var(--terminal-green);
-  border-top-color: var(--terminal-green-bright);
-  border-left-color: var(--terminal-green-bright);
-  border-bottom-color: var(--terminal-green-dim);
-  border-right-color: var(--terminal-green-dim);
+  border: 2px solid var(--terminal-cyan);
+  border-top-color: var(--terminal-cyan-bright);
+  border-left-color: var(--terminal-cyan-bright);
+  border-bottom-color: var(--terminal-cyan-dim);
+  border-right-color: var(--terminal-cyan-dim);
 }
 
 .retro-btn:active {
-  border-top-color: var(--terminal-green-dim);
-  border-left-color: var(--terminal-green-dim);
-  border-bottom-color: var(--terminal-green-bright);
-  border-right-color: var(--terminal-green-bright);
+  border-top-color: var(--terminal-cyan-dim);
+  border-left-color: var(--terminal-cyan-dim);
+  border-bottom-color: var(--terminal-cyan-bright);
+  border-right-color: var(--terminal-cyan-bright);
   transform: translateY(1px);
 }

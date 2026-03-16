@@ -19,7 +19,7 @@ export function Navigation() {
 
   return (
     <nav 
-      className="fixed bottom-0 left-0 right-0 z-50 border-t border-[#00ff0033]" 
+      className="fixed bottom-0 left-0 right-0 z-50 border-t border-[#00ffff33]" 
       style={{ 
         paddingBottom: 'env(safe-area-inset-bottom, 0px)',
         background: 'linear-gradient(to bottom, #0d0d0d, #0a0a0a)',
@@ -34,11 +34,11 @@ export function Navigation() {
               onClick={() => setView(item.view)}
               className={`flex flex-col items-center py-2 px-3 transition-all ${
                 isActive
-                  ? 'text-[#00ff00]'
-                  : 'text-[#008800] hover:text-[#00cc00]'
+                  ? 'text-[#00ffff]'
+                  : 'text-[#008888] hover:text-[#00cccc]'
               }`}
               style={isActive ? {
-                textShadow: '0 0 5px #00ff00, 0 0 10px #00cc00',
+                textShadow: '0 0 5px #00ffff, 0 0 10px #00cccc',
               } : {}}
             >
               <span className="text-lg">{item.emoji}</span>
@@ -46,7 +46,7 @@ export function Navigation() {
                 {isActive ? `> ${item.label}` : item.label}
               </span>
               {isActive && (
-                <span className="animate-terminal-blink text-[#00ff00]">_</span>
+                <span className="animate-terminal-blink text-[#00ffff]">_</span>
               )}
             </button>
           );

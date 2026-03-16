@@ -16,10 +16,6 @@ import {
 import type { ChatEntry } from '../llm/ChatEngine';
 import { fetchInscriptionContent, categorizeContentType, load3DModelFromContent } from '../avatar/OrdinalRenderer';
 import { loadDefaultKitten } from '../avatar/AvatarLoader';
-import { createBattle, executeTurn, getBattleSummary } from '../battle/BattleEngine';
-import { TYPE_EFFECTIVENESS } from '../utils/constants';
-import { getMove } from '../engine/MoveDatabase';
-import type { BattleState, BattleStats, ElementalType, Move } from '../types';
 import { 
   detectGesture, 
   getReactionForGesture, 
@@ -46,92 +42,6 @@ export function ARView() {
   const [cameraSupported, setCameraSupported] = useState(true);
   const [facingMode, setFacingMode] = useState<'environment' | 'user'>('environment');
   const [cameraInfo, setCameraInfo] = useState<string>('');
-  
-  // Battle state
-  const [battleInProgress, setBattleInProgress] = useState(false);
-  const [battleState, setBattleState] = useState<BattleState | null>(null);
-  const [battleLog, setBattleLog] = useState<string[]>([]);
-
-  // Battle handling
-  const handleStartBattle = useCallback(async () => {
-    if (!pet) return;
-    
-    setBattleInProgress(true);
-    setBattleLog(['Starting battle...']);
-    
-    try {
-      // Create a mock opponent for demonstration
-      // In a real app, this would come from another player or NPC
-      const opponentPet = {
-        name: 'Wild Pet',
-        stats: {
-          hp: 50,
-          maxHp: 50,
-          atk: 10,
-          def: 8,
-          spd: 9,
-          special: 12
-        },
-        moves: ['tackle', 'growl'],
-        elementalType: 'normal' as ElementalType
-      };
-      
-      const playerPet = {
-        name: pet.name,
-        stats: {
-          hp: pet.battleStats.hp,
-          maxHp: pet.battleStats.maxHp,
-          atk: pet.battleStats.atk,
-          def: pet.battleStats.def,
-          spd: pet.battleStats.spd,
-          special: pet.battleStats.special
-        },
-        moves: [...pet.moves], // Use pet's actual moves
-        elementalType: pet.elementalType
-      };
-      
-      // Create battle
-      const battle = createBattle(
-        'player', 
-        'opponent', 
-        playerPet, 
-        opponentPet
-      );
-      
-      setBattleState(battle);
-      setBattleLog(prev => [...prev, 'Battle started!']);
-      
-      // Execute a few turns for demonstration
-      for (let i = 0; i < 3 && battle.status === 'active'; i++) {
-        // Use first available move or default to 'tackle'
-        const playerMove = pet.moves.length > 0 ? pet.moves[0] : 'tackle';
-        const turnResult = executeTurn(battle, playerMove, 'tackle'); // Player uses move, opponent uses tackle
-        setBattleState(prev => prev ? { ...prev, ...turnResult } : turnResult);
-        setBattleLog(prev => [...prev, `Turn ${i+1}: Player used ${playerMove}`]);
-        
-        if (turnResult.winner) break;
-        
-        // Opponent turn - swap the order for executeTurn
-        const opponentMove = opponentPet.moves.length > 0 ? opponentPet.moves[0] : 'tackle';
-        const opponentTurn = executeTurn(turnResult, opponentMove, 'tackle'); // Opponent uses move, player uses tackle
-        setBattleState(prev => prev ? { ...prev, ...opponentTurn } : opponentTurn);
-        setBattleLog(prev => [...prev, `Turn ${i+1}: Opponent used ${opponentMove}`]);
-        
-        if (opponentTurn.winner) break;
-      }
-      
-      // Final update
-      const finalBattle = battleState || battle;
-      setBattleState(finalBattle);
-      setBattleLog(prev => [...prev, getBattleSummary(finalBattle)]);
-      
-    } catch (error: any) {
-      console.error('[AR] Battle error:', error);
-      setBattleLog(prev => [...prev, `Battle error: ${error.message || 'Unknown error'}`]);
-    } finally {
-      setBattleInProgress(false);
-    }
-  }, [pet, battleState]);
 
   // Pre-flight camera support check
   useEffect(() => {
@@ -1281,69 +1191,28 @@ export function ARView() {
              </div>
            )}
 
-           {/* Battle Button */}
-           <button
-             onClick={handleStartBattle}
-             disabled={battleInProgress}
-             className={`w-full font-semibold py-4 rounded-xl transition-all ${
-               battleInProgress
-                 ? 'bg-gray-800 text-gray-500 cursor-not-allowed'
-                 : 'bg-gradient-to-r from-red-500 to-yellow-500 text-white hover:from-red-600 hover:to-yellow-600'
-             }`}
-           >
-             {battleInProgress ? '⚔️ Battle in Progress' : '⚔️ Start Battle'}
-           </button>
+            {/* Battle feature removed from AR mode - use Battle tab instead */}
 
-           {/* Battle Display */}
-           {battleInProgress && battleState && (
-             <div className="mt-3 p-3 bg-[#1a1a2e] rounded-xl border border-gray-800">
-               <div className="flex justify-between mb-2">
-                 <span className="text-sm font-medium text-gray-300">⚔️ Battle Active</span>
-                 <button
-                   onClick={() => {
-                     setBattleInProgress(false);
-                     setBattleState(null);
-                     setBattleLog([]);
-                   }}
-                   className="text-red-400 hover:text-red-300 text-xs"
-                 >
-                   ✕
-                 </button>
-               </div>
-               
-               {/* Battle Log - simplified */}
-               <div className="h-20 overflow-y-auto mb-2 text-xs">
-                 {battleLog.map((log, index) => (
-                   <div key={index} className="mb-1">
-                     <span className="text-gray-300">{log}</span>
-                   </div>
-                 ))}
-               </div>
-               
-               {/* Battle Stats - simplified */}
-               {battleState.pets && (
-                 <div className="mt-2">
-                   <div className="text-sm">
-                     Player: HP {battleState.pets[0].hp}/{battleState.pets[0].maxHp} | ATK {battleState.pets[0].atk}
-                   </div>
-                   <div className="text-sm">
-                     Opponent: HP {battleState.pets[1]?.hp ?? 0}/{battleState.pets[1]?.maxHp ?? 0} | ATK {battleState.pets[1]?.atk ?? 0}
-                   </div>
-                 </div>
-               )}
-             </div>
-           )}
-
-           <div className="bg-[#1a1a2e] rounded-xl p-4 border border-gray-800 text-center">
-             <div className="text-5xl mb-2">{getStageEmoji(pet.stage)}</div>
-             <p className="text-sm text-gray-400">
-               {pet.name} is ready to explore the real world!
-             </p>
-             <p className="text-xs text-gray-600 mt-1">
-               📸 Camera AR overlays your pet on the camera feed.
-               {arSupported ? ' 🥽 WebXR works on Meta Quest, Meta glasses, and XR browsers!' : ''}
-             </p>
-           </div>
+            <div className="bg-[#1a1a2e] rounded-xl p-4 border border-gray-800 text-center">
+              <div className="text-5xl mb-2">{getStageEmoji(pet.stage)}</div>
+              <p className="text-sm text-gray-400">
+                {pet.name} is ready to explore the real world!
+              </p>
+              <p className="text-xs text-gray-600 mt-1">
+                📸 Camera AR overlays your pet on the camera feed.
+                {arSupported ? ' 🥽 WebXR works on Meta Quest, Meta glasses, and XR browsers!' : ''}
+              </p>
+              {!arSupported && !('xr' in navigator) && (
+                <div className="mt-2 p-2 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
+                  <p className="text-xs text-yellow-400">
+                    ⚠️ WebXR not available in this browser
+                  </p>
+                  <p className="text-xs text-yellow-500 mt-1">
+                    Try Chrome on Android, Safari on iOS, or Meta Quest Browser
+                  </p>
+                </div>
+              )}
+            </div>
          </div>
        ) : (
         <div ref={containerRef} className="relative rounded-2xl overflow-hidden border border-gray-800" style={{ height: '400px' }}>
