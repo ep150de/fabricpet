@@ -9,8 +9,9 @@ import { fetchLeaderboard, type LeaderboardEntry } from '../nostr/leaderboard';
 import { loadPetByPubkey, signGuestbook, npubToHex, type VisitedPet } from '../nostr/petVisitor';
 import { generateQRDataUrlAsync, parseQRCode, startQRScanner, isQRScanSupported } from '../social/QRCodeManager';
 import { savePetState } from '../nostr/petStorage';
+import { NearbyPets } from './NearbyPets';
 
-type SocialTab = 'leaderboard' | 'visit' | 'qr';
+type SocialTab = 'leaderboard' | 'visit' | 'nearby' | 'qr';
 
 const ELEMENT_EMOJI: Record<string, string> = {
   fire: '🔥', water: '💧', earth: '🌿', air: '💨',
@@ -59,6 +60,16 @@ export function SocialView() {
           👋 Visit
         </button>
         <button
+          onClick={() => setTab('nearby')}
+          className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-all ${
+            tab === 'nearby'
+              ? 'bg-green-500/20 text-green-400 border border-green-500/50'
+              : 'bg-[#1a1a2e] text-gray-500 border border-gray-800'
+          }`}
+        >
+          📍 Nearby
+        </button>
+        <button
           onClick={() => setTab('qr')}
           className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-all ${
             tab === 'qr'
@@ -72,6 +83,7 @@ export function SocialView() {
 
       {tab === 'leaderboard' && <LeaderboardTab />}
       {tab === 'visit' && <VisitTab />}
+      {tab === 'nearby' && <NearbyPets />}
       {tab === 'qr' && <QRMeetTab />}
     </div>
   );
