@@ -243,3 +243,99 @@ export function playSpatialAudio(
   // 3. Set position based on pet location
   // 4. Play the sound
 }
+
+/**
+ * Voice Command Recognition
+ * Uses Web Speech API for voice commands in WebXR mode
+ */
+export interface VoiceCommandHandler {
+  onCommand: (command: string, gesture: GestureType) => void;
+  onError: (error: string) => void;
+}
+
+export function startVoiceRecognition(handler: VoiceCommandHandler): () => void {
+  // Check if SpeechRecognition is available
+  const SpeechRecognition = (window as any).SpeechRecognition || 
+                           (window as any).webkitSpeechRecognition;
+  
+  if (!SpeechRecognition) {
+    handler.onError('Speech recognition not supported in this browser');
+    return () => {};
+  }
+
+  const recognition = new SpeechRecognition();
+  recognition.continuous = true;
+  recognition.interimResults = false;
+  recognition.lang = 'en-US';
+
+  recognition.onresult = (event: any) => {
+    const last = event.results.length - 1;
+    const transcript = event.results[last][0].transcript.toLowerCase().trim();
+    
+    console.log('[Voice] Heard:', transcript);
+    
+    // Map voice commands to gestures
+    let gesture: GestureType = 'none';
+    
+    if (transcript.includes('hello') || transcript.includes('hi') || transcript.includes('hey')) {
+      gesture = 'wave';
+    } else if (transcript.includes('sit') || transcript.includes('down')) {
+      gesture = 'fist'; // Crouch/hide
+    } else if (transcript.includes('play') || transcript.includes('fetch')) {
+      gesture = 'pinch'; // Throw ball
+    } else if (transcript.includes('good') || transcript.includes('happy') || transcript.includes('yes')) {
+      gesture = 'thumbsUp';
+    } else if (transcript.includes('look') || transcript.includes('watch')) {
+      gesture = 'point';
+    } else if (transcript.includes('jump') || transcript.includes('bounce')) {
+      gesture = 'open'; // Open hand = excitement
+    }
+    
+    if (gesture !== 'none') {
+      handler.onCommand(transcript, gesture);
+    }
+  };
+
+  recognition.onerror = (event: any) => {
+    console.warn('[Voice] Error:', event.error);
+    if (event.error !== 'no-speech') {
+      handler.onError(`Voice error: ${event.error}`);
+    }
+  };
+
+  recognition.onend = () => {
+    // Restart if not manually stopped
+    if (recognition) {
+      try {
+        recognition.start();
+      } catch {
+        // Already started
+      }
+    }
+  };
+
+  try {
+    recognition.start();
+    console.log('[Voice] Recognition started');
+  } catch (e) {
+    handler.onError('Failed to start voice recognition');
+  }
+
+  // Return cleanup function
+  return () => {
+    try {
+      recognition.stop();
+      console.log('[Voice] Recognition stopped');
+    } catch {
+      // Ignore errors on cleanup
+    }
+  };
+}
+
+/**
+ * Check if voice commands are supported
+ */
+export function isVoiceSupported(): boolean {
+  return typeof window !== 'undefined' && 
+         (!!((window as any).SpeechRecognition) || !!((window as any).webkitSpeechRecognition));
+}

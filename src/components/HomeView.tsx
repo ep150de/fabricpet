@@ -13,6 +13,8 @@ import { generateSceneJSON } from '../rp1/SceneJSONGenerator';
 import { forceSyncScene } from '../rp1/SceneSync';
 import { fetchInscriptionContent, applyImageTextureToMesh, categorizeContentType, load3DModelFromContent } from '../avatar/OrdinalRenderer';
 import { QRCodeGenerator } from './QRCodeGenerator';
+import { AvatarPicker } from './AvatarPicker';
+import type { OSAAvatar } from '../types';
 
 type HomeTheme = {
   id: string;
@@ -31,6 +33,7 @@ export function HomeView() {
   const [newThemeUnlocked, setNewThemeUnlocked] = useState<HomeTheme | null>(null);
   const [quickSyncing, setQuickSyncing] = useState(false);
   const [quickSyncResult, setQuickSyncResult] = useState<'success' | 'error' | null>(null);
+  const [showAvatarPicker, setShowAvatarPicker] = useState(false);
 
   if (!pet) return null;
 
@@ -102,6 +105,14 @@ export function HomeView() {
       setQuickSyncResult(null);
       setNotification(null);
     }, 3000);
+  };
+
+  const handleAvatarSelect = (avatar: OSAAvatar) => {
+    console.log('[HomeView] Avatar selected:', avatar.name, avatar.modelFileUrl);
+    setNotification({ message: `Selected: ${avatar.name}`, emoji: '🎭' });
+    setShowAvatarPicker(false);
+    // In a full implementation, this would update the pet's avatar/model
+    setTimeout(() => setNotification(null), 2000);
   };
 
   // 3D Kawaii Home Scene
@@ -619,6 +630,28 @@ export function HomeView() {
           </div>
         </div>
       )}
+
+      {/* OSA Avatar Picker */}
+      <div className="bg-[#1a1a2e] rounded-xl p-4 mb-4 border border-gray-800">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-sm font-semibold text-gray-300">🎭 Change Pet Avatar</h3>
+          <button
+            onClick={() => setShowAvatarPicker(!showAvatarPicker)}
+            className="text-xs text-indigo-400 hover:text-indigo-300 underline"
+          >
+            {showAvatarPicker ? 'Close' : 'Browse OSA Gallery'}
+          </button>
+        </div>
+        {showAvatarPicker ? (
+          <AvatarPicker onSelect={handleAvatarSelect} />
+        ) : (
+          <p className="text-xs text-gray-500">
+            Browse 4260+ free VRM avatars from the Open Source Avatars Gallery.
+            <br />
+            Note: Bitcoin ordinal 3D models take priority when equipped.
+          </p>
+        )}
+      </div>
 
       {/* Nostr Identity */}
       {identity && (
