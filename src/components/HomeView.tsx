@@ -12,6 +12,8 @@ import { downloadPetGLB } from '../rp1/GLBExporter';
 import { generateSceneJSON } from '../rp1/SceneJSONGenerator';
 import { forceSyncScene } from '../rp1/SceneSync';
 import { fetchInscriptionContent, applyImageTextureToMesh, categorizeContentType, load3DModelFromContent } from '../avatar/OrdinalRenderer';
+import { fetchAvatarList, getAvatarById, loadVRMModel } from '../avatar/AvatarLoader';
+import { saveLocalPet } from '../store/localStorage';
 import { QRCodeGenerator } from './QRCodeGenerator';
 import { AvatarPicker } from './AvatarPicker';
 import type { OSAAvatar } from '../types';
@@ -107,11 +109,31 @@ export function HomeView() {
     }, 3000);
   };
 
-  const handleAvatarSelect = (avatar: OSAAvatar) => {
-    console.log('[HomeView] Avatar selected:', avatar.name, avatar.modelFileUrl);
-    setNotification({ message: `Selected: ${avatar.name}`, emoji: '🎭' });
-    setShowAvatarPicker(false);
-    // In a full implementation, this would update the pet's avatar/model
+  const handleAvatarSelect = async (avatar: OSAAvatar) => {
+    if (!pet) return;
+    
+    try {
+      // Update pet state with avatarId
+      const updatedPet = { ...pet, avatarId: avatar.id };
+      
+      // Update the pet in the store
+      useStore.getState().setPet(updatedPet);
+      
+      // Save to localStorage for persistence
+      saveLocalPet(updatedPet);
+      
+      // Show success notification
+      setNotification({ message: `Avatar set: ${avatar.name}`, emoji: '🎭' });
+      setShowAvatarPicker(false);
+      
+      // Trigger 3D scene refresh by updating state
+      // The 3D scene useEffect depends on pet state, so it will refresh automatically
+      
+    } catch (error) {
+      console.error('[HomeView] Failed to set avatar:', error);
+      setNotification({ message: 'Failed to set avatar', emoji: '❌' });
+    }
+    
     setTimeout(() => setNotification(null), 2000);
   };
 
@@ -244,7 +266,31 @@ export function HomeView() {
       petBody.position.set(0, 0.8, 0);
       scene.add(petBody);
 
-      // --- Load ordinal inscription as texture/model ---
+      // --- Load VRM model if avatarId is set ---
+      if (pet.avatarId && !pet.equippedOrdinal) {
+        try {
+          // Fetch avatar from OSA Gallery
+          const avatar = await getAvatarById(pet.avatarId);
+          if (avatar && avatar.modelFileUrl) {
+            // Load VRM model
+            const vrmModel = await loadVRMModel(avatar.modelFileUrl, scene);
+            if (vrmModel && (vrmModel as any).scene) {
+              // Hide default sphere, add VRM model
+              petBody.visible = false;
+              const vrmScene = (vrmModel as any).scene;
+              vrmScene.position.set(0, 0, 0); // Adjust position as needed
+              vrmScene.scale.set(0.5, 0.5, 0.5); // Scale down to fit in the scene
+              scene.add(vrmScene);
+              console.log('[HomeView] VRM model loaded successfully');
+            }
+          }
+        } catch (error) {
+          console.warn('[HomeView] Failed to load VRM model, using sphere:', error);
+          // Continue with sphere pet
+        }
+      }
+
+      // --- Load ordinal inscription as texture/model (overrides VRM if equipped) ---
       if (pet.equippedOrdinal) {
         fetchInscriptionContent(pet.equippedOrdinal).then(async (content) => {
           if (!content || cleanup) return;

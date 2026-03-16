@@ -15,7 +15,7 @@ import {
 } from '../llm/ChatEngine';
 import type { ChatEntry } from '../llm/ChatEngine';
 import { fetchInscriptionContent, categorizeContentType, load3DModelFromContent } from '../avatar/OrdinalRenderer';
-import { loadDefaultKitten } from '../avatar/AvatarLoader';
+import { loadDefaultKitten, getAvatarById, loadVRMModel } from '../avatar/AvatarLoader';
 import { 
   detectGesture, 
   getReactionForGesture, 
@@ -832,14 +832,45 @@ export function ARView() {
                   petMesh = createSpherePet();
                 }
               } else {
-                // Not a 3D model, use default kitten
-                console.log('[AR] Ordinal is not a 3D model, loading default kitten VRM');
-                const kitten = await createKittenVRM();
-                if (kitten) {
-                  petMesh = kitten;
-                  isVRMModel = true;
+                // Not a 3D model, check for avatarId or use default kitten
+                if (pet.avatarId) {
+                  console.log('[AR] Ordinal is not 3D, loading VRM from avatarId');
+                  try {
+                    const avatar = await getAvatarById(pet.avatarId);
+                    if (avatar && avatar.modelFileUrl) {
+                      const vrmModel = await loadVRMModel(avatar.modelFileUrl, scene);
+                      if (vrmModel && (vrmModel as any).scene) {
+                        petMesh = (vrmModel as any).scene as THREE.Object3D;
+                        isVRMModel = true;
+                      } else {
+                        const kitten = await createKittenVRM();
+                        if (kitten) {
+                          petMesh = kitten;
+                          isVRMModel = true;
+                        } else {
+                          petMesh = createSpherePet();
+                        }
+                      }
+                    }
+                  } catch (error) {
+                    console.warn('[AR] Failed to load VRM from avatarId:', error);
+                    const kitten = await createKittenVRM();
+                    if (kitten) {
+                      petMesh = kitten;
+                      isVRMModel = true;
+                    } else {
+                      petMesh = createSpherePet();
+                    }
+                  }
                 } else {
-                  petMesh = createSpherePet();
+                  console.log('[AR] Ordinal is not a 3D model, loading default kitten VRM');
+                  const kitten = await createKittenVRM();
+                  if (kitten) {
+                    petMesh = kitten;
+                    isVRMModel = true;
+                  } else {
+                    petMesh = createSpherePet();
+                  }
                 }
               }
             } else {
@@ -864,14 +895,54 @@ export function ARView() {
             }
           }
         } else {
-          // No equipped ordinal, use default kitten VRM
-          console.log('[AR] No ordinal equipped, loading default kitten VRM');
-          const kitten = await createKittenVRM();
-          if (kitten) {
-            petMesh = kitten;
-            isVRMModel = true;
+          // No equipped ordinal, check for avatarId or use default kitten
+          if (pet?.avatarId) {
+            console.log('[AR] No ordinal, loading VRM from avatarId');
+            try {
+              const avatar = await getAvatarById(pet.avatarId);
+              if (avatar && avatar.modelFileUrl) {
+                const vrmModel = await loadVRMModel(avatar.modelFileUrl, scene);
+                if (vrmModel && (vrmModel as any).scene) {
+                  petMesh = (vrmModel as any).scene as THREE.Object3D;
+                  isVRMModel = true;
+                } else {
+                  const kitten = await createKittenVRM();
+                  if (kitten) {
+                    petMesh = kitten;
+                    isVRMModel = true;
+                  } else {
+                    petMesh = createSpherePet();
+                  }
+                }
+              } else {
+                const kitten = await createKittenVRM();
+                if (kitten) {
+                  petMesh = kitten;
+                  isVRMModel = true;
+                } else {
+                  petMesh = createSpherePet();
+                }
+              }
+            } catch (error) {
+              console.warn('[AR] Failed to load VRM from avatarId:', error);
+              const kitten = await createKittenVRM();
+              if (kitten) {
+                petMesh = kitten;
+                isVRMModel = true;
+              } else {
+                petMesh = createSpherePet();
+              }
+            }
           } else {
-            petMesh = createSpherePet();
+            // No ordinal, no avatarId, use default kitten VRM
+            console.log('[AR] No ordinal or avatarId, loading default kitten VRM');
+            const kitten = await createKittenVRM();
+            if (kitten) {
+              petMesh = kitten;
+              isVRMModel = true;
+            } else {
+              petMesh = createSpherePet();
+            }
           }
         }
 
@@ -1011,7 +1082,7 @@ export function ARView() {
           const lh = scene.getObjectByName('lh') as THREE.Mesh | undefined;
           const rh = scene.getObjectByName('rh') as THREE.Mesh | undefined;
           
-          if (leftEye && rightEye && lh && rh) {
+          if (leftEye && rightEye && lh && rh && petMesh) {
             leftEye.position.y = petMesh.position.y + 0.1;
             rightEye.position.y = petMesh.position.y + 0.1;
             lh.position.y = petMesh.position.y + 0.13;
