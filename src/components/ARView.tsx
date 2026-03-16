@@ -16,6 +16,7 @@ import {
 import type { ChatEntry } from '../llm/ChatEngine';
 import { fetchInscriptionContent, categorizeContentType, load3DModelFromContent } from '../avatar/OrdinalRenderer';
 import { loadDefaultKitten, getAvatarById, loadVRMModel } from '../avatar/AvatarLoader';
+import { ARBattleVisualizer } from '../battle/ARBattleVisualizer';
 import { 
   detectGesture, 
   getReactionForGesture, 
@@ -42,6 +43,10 @@ export function ARView() {
   const [cameraSupported, setCameraSupported] = useState(true);
   const [facingMode, setFacingMode] = useState<'environment' | 'user'>('environment');
   const [cameraInfo, setCameraInfo] = useState<string>('');
+  
+  // Battle state
+  const [battleActive, setBattleActive] = useState(false);
+  const [battleState, setBattleState] = useState<any>(null);
 
   // Pre-flight camera support check
   useEffect(() => {
@@ -1324,23 +1329,68 @@ export function ARView() {
              </button>
            )}
 
-           {webxrActive && (
-             <div className="bg-gradient-to-r from-cyan-900/30 to-teal-900/30 rounded-xl p-4 border border-cyan-500/30 text-center">
-               <div className="text-4xl mb-2 animate-pulse">🥽</div>
-               <p className="text-sm text-cyan-300 font-semibold">WebXR Session Active!</p>
-               <p className="text-xs text-gray-400 mt-1">
-                 {pet.name} is floating in your space. Look around!
-               </p>
-               <button
-                 onClick={stopWebXR}
-                 className="mt-3 bg-red-500/80 hover:bg-red-500 text-white text-sm font-bold px-4 py-2 rounded-lg transition-all"
-               >
-                 ✕ End XR Session
-               </button>
-             </div>
-           )}
+            {webxrActive && (
+              <div className="bg-gradient-to-r from-cyan-900/30 to-teal-900/30 rounded-xl p-4 border border-cyan-500/30 text-center">
+                <div className="text-4xl mb-2 animate-pulse">🥽</div>
+                <p className="text-sm text-cyan-300 font-semibold">WebXR Session Active!</p>
+                <p className="text-xs text-gray-400 mt-1">
+                  {pet.name} is floating in your space. Look around!
+                </p>
+                <button
+                  onClick={stopWebXR}
+                  className="mt-3 bg-red-500/80 hover:bg-red-500 text-white text-sm font-bold px-4 py-2 rounded-lg transition-all"
+                >
+                  ✕ End XR Session
+                </button>
+              </div>
+            )}
 
-            {/* Battle feature removed from AR mode - use Battle tab instead */}
+            {/* Battle Button */}
+            <button
+              onClick={() => {
+                if (!battleActive) {
+                  // Create a mock battle for testing
+                  const mockBattle = {
+                    id: `battle-${Date.now()}`,
+                    players: ['player1', 'opponent'],
+                    pets: [
+                      {
+                        name: pet.name,
+                        hp: pet.battleStats.hp,
+                        maxHp: pet.battleStats.maxHp,
+                        atk: pet.battleStats.atk,
+                        def: pet.battleStats.def,
+                        spd: pet.battleStats.spd,
+                        special: pet.battleStats.special,
+                        moves: pet.moves,
+                        elementalType: pet.elementalType,
+                      },
+                      {
+                        name: 'Wild Pet',
+                        hp: 50,
+                        maxHp: 50,
+                        atk: 10,
+                        def: 8,
+                        spd: 9,
+                        special: 12,
+                        moves: ['tackle', 'growl'],
+                        elementalType: 'neutral',
+                      },
+                    ],
+                    currentTurn: 1,
+                    turns: [],
+                    activeEffects: ['none', 'none'],
+                    winner: null,
+                    status: 'active',
+                  };
+                  setBattleState(mockBattle);
+                  setBattleActive(true);
+                }
+              }}
+              className="w-full font-semibold py-4 rounded-xl transition-all bg-gradient-to-r from-orange-500 to-red-500 text-white hover:from-orange-600 hover:to-red-600"
+            >
+              ⚔️ Start Battle Mode
+            </button>
 
             <div className="bg-[#1a1a2e] rounded-xl p-4 border border-gray-800 text-center">
               <div className="text-5xl mb-2">{getStageEmoji(pet.stage)}</div>
@@ -1416,6 +1466,41 @@ export function ARView() {
           >
             ✕ Stop AR
           </button>
+        </div>
+      )}
+      
+      {/* Battle Mode UI */}
+      {battleActive && (
+        <div className="fixed inset-0 bg-black/80 z-50 flex flex-col">
+          <div className="p-4 max-w-lg mx-auto w-full">
+            <div className="text-center mb-4">
+              <h2 className="text-2xl font-bold text-white">⚔️ Battle Mode</h2>
+              <p className="text-gray-400 text-sm mt-1">Turn-based battle in AR</p>
+            </div>
+            
+            {/* Battle Visualizer */}
+            <ARBattleVisualizer
+              battleState={battleState}
+              isActive={battleActive}
+              onMoveSelect={(moveId) => {
+                console.log('[AR] Move selected:', moveId);
+                // In a real implementation, this would send the move to the battle engine
+              }}
+            />
+            
+            {/* Battle Controls */}
+            <div className="absolute bottom-4 left-4 right-4">
+              <button
+                onClick={() => {
+                  setBattleActive(false);
+                  setBattleState(null);
+                }}
+                className="w-full bg-red-500/80 hover:bg-red-500 text-white font-bold py-3 rounded-xl"
+              >
+                ✕ End Battle
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
