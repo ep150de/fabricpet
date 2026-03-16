@@ -1,12 +1,29 @@
 @import "tailwindcss";
 
 :root {
+  /* Original colors (kept for backward compatibility) */
   --color-primary: #6366f1;
   --color-secondary: #ec4899;
   --color-accent: #f59e0b;
-  --color-bg-dark: #0f0f23;
-  --color-bg-card: #1a1a2e;
-  --color-text: #e2e8f0;
+  
+  /* Matrix Terminal Theme */
+  --terminal-green: #00ff00;
+  --terminal-green-dim: #00cc00;
+  --terminal-green-bright: #33ff33;
+  --terminal-bg: #0a0a0a;
+  --terminal-bg-light: #111111;
+  --terminal-bg-card: #0d0d0d;
+  --terminal-text: #00ff00;
+  --terminal-text-dim: #008800;
+  --terminal-warning: #ffcc00;
+  --terminal-error: #ff3333;
+  --terminal-success: #33ff33;
+  --terminal-border: #00ff0033;
+  
+  /* Legacy colors for compatibility */
+  --color-bg-dark: var(--terminal-bg);
+  --color-bg-card: var(--terminal-bg-card);
+  --color-text: var(--terminal-text);
 }
 
 * {
@@ -16,15 +33,76 @@
 }
 
 body {
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
-  background: var(--color-bg-dark);
-  color: var(--color-text);
+  font-family: 'Fira Code', 'JetBrains Mono', 'Courier New', monospace;
+  background: var(--terminal-bg);
+  color: var(--terminal-text);
   min-height: 100vh;
   overflow-x: hidden;
 }
 
 #root {
   min-height: 100vh;
+}
+
+/* Scanline overlay effect */
+.scanlines::before {
+  content: "";
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    to bottom,
+    transparent 50%,
+    rgba(0, 0, 0, 0.05) 50%
+  );
+  background-size: 100% 4px;
+  pointer-events: none;
+  z-index: 9999;
+}
+
+/* Terminal window effect */
+.terminal-window {
+  background: var(--terminal-bg-card);
+  border: 1px solid var(--terminal-border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.terminal-titlebar {
+  background: var(--terminal-bg-light);
+  padding: 8px 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-bottom: 1px solid var(--terminal-border);
+}
+
+.terminal-titlebar-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+}
+
+/* Glow effects */
+.glow-green {
+  text-shadow: 0 0 5px var(--terminal-green), 0 0 10px var(--terminal-green-dim);
+}
+
+.glow-box {
+  box-shadow: 0 0 5px var(--terminal-green), 0 0 10px var(--terminal-green-dim);
+}
+
+/* Terminal text effects */
+.terminal-text {
+  color: var(--terminal-text);
+  text-shadow: 0 0 5px var(--terminal-green-dim);
+}
+
+.terminal-prompt::before {
+  content: "> ";
+  color: var(--terminal-green-bright);
 }
 
 /* 3D Canvas */
@@ -34,18 +112,55 @@ body {
   display: block;
 }
 
-/* Pet status bars */
+/* Pet status bars - terminal style */
 .status-bar {
   height: 8px;
-  border-radius: 4px;
+  border-radius: 0;
   overflow: hidden;
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--terminal-bg-light);
+  border: 1px solid var(--terminal-border);
 }
 
 .status-bar-fill {
   height: 100%;
-  border-radius: 4px;
   transition: width 0.5s ease;
+  background: var(--terminal-green);
+}
+
+/* Terminal-style button */
+.terminal-btn {
+  background: var(--terminal-bg-light);
+  color: var(--terminal-text);
+  border: 1px solid var(--terminal-border);
+  padding: 8px 16px;
+  font-family: 'Fira Code', monospace;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.terminal-btn:hover {
+  background: var(--terminal-green);
+  color: var(--terminal-bg);
+  box-shadow: 0 0 10px var(--terminal-green);
+}
+
+.terminal-btn:active {
+  transform: translateY(1px);
+}
+
+/* Terminal input */
+.terminal-input {
+  background: var(--terminal-bg);
+  color: var(--terminal-text);
+  border: 1px solid var(--terminal-border);
+  padding: 8px 12px;
+  font-family: 'Fira Code', monospace;
+}
+
+.terminal-input:focus {
+  outline: none;
+  border-color: var(--terminal-green);
+  box-shadow: 0 0 5px var(--terminal-green);
 }
 
 /* Battle animations */
@@ -61,8 +176,8 @@ body {
 }
 
 @keyframes pulse-glow {
-  0%, 100% { box-shadow: 0 0 5px rgba(99, 102, 241, 0.5); }
-  50% { box-shadow: 0 0 20px rgba(99, 102, 241, 0.8); }
+  0%, 100% { box-shadow: 0 0 5px var(--terminal-green); }
+  50% { box-shadow: 0 0 20px var(--terminal-green-bright); }
 }
 
 @keyframes float {
@@ -70,7 +185,56 @@ body {
   50% { transform: translateY(-8px); }
 }
 
+@keyframes terminal-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+@keyframes scanline {
+  0% { transform: translateY(-100%); }
+  100% { transform: translateY(100vh); }
+}
+
+@keyframes matrix-rain {
+  0% { transform: translateY(-100%); opacity: 1; }
+  100% { transform: translateY(100vh); opacity: 0; }
+}
+
 .animate-shake { animation: shake 0.3s ease-in-out; }
 .animate-bounce-pet { animation: bounce 1s ease-in-out infinite; }
 .animate-pulse-glow { animation: pulse-glow 2s ease-in-out infinite; }
 .animate-float { animation: float 3s ease-in-out infinite; }
+.animate-terminal-blink { animation: terminal-blink 1s step-end infinite; }
+
+/* CRT screen curvature effect */
+.crt-effect {
+  border-radius: 20px;
+  overflow: hidden;
+}
+
+/* Phosphor glow text */
+.phosphor-glow {
+  text-shadow: 
+    0 0 2px var(--terminal-green),
+    0 0 4px var(--terminal-green-dim),
+    0 0 8px var(--terminal-green-dim);
+}
+
+/* Retro button pressed state */
+.retro-btn {
+  position: relative;
+  background: var(--terminal-bg-light);
+  border: 2px solid var(--terminal-green);
+  border-top-color: var(--terminal-green-bright);
+  border-left-color: var(--terminal-green-bright);
+  border-bottom-color: var(--terminal-green-dim);
+  border-right-color: var(--terminal-green-dim);
+}
+
+.retro-btn:active {
+  border-top-color: var(--terminal-green-dim);
+  border-left-color: var(--terminal-green-dim);
+  border-bottom-color: var(--terminal-green-bright);
+  border-right-color: var(--terminal-green-bright);
+  transform: translateY(1px);
+}

@@ -1,39 +1,56 @@
 // ============================================
-// Bottom Navigation Bar
+// Bottom Navigation Bar — Terminal Style
 // ============================================
 
 import { useStore } from '../store/useStore';
 import type { AppView } from '../types';
 
-const navItems: { view: AppView; emoji: string; label: string }[] = [
-  { view: 'home', emoji: '🏠', label: 'Home' },
-  { view: 'pet', emoji: '🐾', label: 'Pet' },
-  { view: 'chat', emoji: '💬', label: 'Chat' },
-  { view: 'battle', emoji: '⚔️', label: 'Battle' },
-  { view: 'social', emoji: '👥', label: 'Social' },
-  { view: 'wallet', emoji: '💰', label: 'Wallet' },
+const navItems: { view: AppView; emoji: string; label: string; cmd: string }[] = [
+  { view: 'home', emoji: '🏠', label: 'Home', cmd: '_home' },
+  { view: 'pet', emoji: '🐾', label: 'Pet', cmd: '_pet' },
+  { view: 'chat', emoji: '💬', label: 'Chat', cmd: '_chat' },
+  { view: 'battle', emoji: '⚔️', label: 'Battle', cmd: '_battle' },
+  { view: 'social', emoji: '👥', label: 'Social', cmd: '_social' },
+  { view: 'wallet', emoji: '💰', label: 'Wallet', cmd: '_wallet' },
 ];
 
 export function Navigation() {
   const { currentView, setView } = useStore();
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 bg-[#1a1a2e] border-t border-gray-800 px-2 py-1 z-50" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
+    <nav 
+      className="fixed bottom-0 left-0 right-0 z-50 border-t border-[#00ff0033]" 
+      style={{ 
+        paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+        background: 'linear-gradient(to bottom, #0d0d0d, #0a0a0a)',
+      }}
+    >
       <div className="flex justify-around items-center max-w-lg mx-auto">
-        {navItems.map((item) => (
-          <button
-            key={item.view}
-            onClick={() => setView(item.view)}
-            className={`flex flex-col items-center py-2 px-4 rounded-lg transition-all ${
-              currentView === item.view
-                ? 'bg-indigo-500/20 text-indigo-400'
-                : 'text-gray-500 hover:text-gray-300'
-            }`}
-          >
-            <span className="text-xl">{item.emoji}</span>
-            <span className="text-xs mt-0.5 font-medium">{item.label}</span>
-          </button>
-        ))}
+        {navItems.map((item) => {
+          const isActive = currentView === item.view;
+          return (
+            <button
+              key={item.view}
+              onClick={() => setView(item.view)}
+              className={`flex flex-col items-center py-2 px-3 transition-all ${
+                isActive
+                  ? 'text-[#00ff00]'
+                  : 'text-[#008800] hover:text-[#00cc00]'
+              }`}
+              style={isActive ? {
+                textShadow: '0 0 5px #00ff00, 0 0 10px #00cc00',
+              } : {}}
+            >
+              <span className="text-lg">{item.emoji}</span>
+              <span className="text-xs mt-0.5 font-medium font-mono">
+                {isActive ? `> ${item.label}` : item.label}
+              </span>
+              {isActive && (
+                <span className="animate-terminal-blink text-[#00ff00]">_</span>
+              )}
+            </button>
+          );
+        })}
       </div>
     </nav>
   );

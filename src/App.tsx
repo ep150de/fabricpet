@@ -214,14 +214,15 @@ export default function App() {
     return () => clearInterval(nostrInterval);
   }, [pet, identity]);
 
-  // Loading screen
+  // Loading screen - Terminal style
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#0f0f23]">
+      <div className="min-h-screen flex items-center justify-center scanlines" style={{ background: '#0a0a0a' }}>
         <div className="text-center">
           <div className="text-6xl animate-bounce-pet mb-4">🐾</div>
-          <h1 className="text-2xl font-bold text-indigo-400">FabricPet</h1>
-          <p className="text-gray-400 mt-2">Loading your pet...</p>
+          <h1 className="text-2xl font-bold phosphor-glow" style={{ color: '#00ff00' }}>FabricPet</h1>
+          <p className="text-[#008800] mt-2 font-mono">&gt; Initializing system_</p>
+          <p className="text-[#008800] mt-1 font-mono animate-terminal-blink">Loading your pet...</p>
         </div>
       </div>
     );
@@ -232,9 +233,9 @@ export default function App() {
     return <SetupScreen />;
   }
 
-  // Main app
+  // Main app - Terminal style
   return (
-    <div className="min-h-screen bg-[#0f0f23] flex flex-col">
+    <div className="min-h-screen flex flex-col scanlines" style={{ background: '#0a0a0a' }}>
       {/* Notification */}
       {notification && <Notification message={notification.message} emoji={notification.emoji} />}
 
