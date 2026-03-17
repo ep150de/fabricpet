@@ -155,7 +155,14 @@ export function HomeView() {
       camera.position.set(0, 2.5, 5);
       camera.lookAt(0, 0.5, 0);
 
-      renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
+      try {
+        renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
+      } catch (e) {
+        console.error('[HomeView] WebGLRenderer failed to initialize:', e);
+        return; // Bail out if WebGL is not available
+      }
+      if (cleanup) return; // Check cleanup after renderer creation
+      
       renderer.setSize(canvas.clientWidth, canvas.clientHeight);
       renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
       renderer.setClearColor(0x0f0f23, 1);
@@ -271,9 +278,11 @@ export function HomeView() {
         try {
           // Fetch avatar from OSA Gallery
           const avatar = await getAvatarById(pet.avatarId);
+          if (cleanup) return; // CRITICAL: Check if effect was cleaned up
           if (avatar && avatar.modelFileUrl) {
             // Load VRM model
             const vrmModel = await loadVRMModel(avatar.modelFileUrl, scene);
+            if (cleanup) return; // CRITICAL: Check if effect was cleaned up
             if (vrmModel && (vrmModel as any).scene) {
               // Hide default sphere, add VRM model
               petBody.visible = false;
@@ -396,7 +405,7 @@ export function HomeView() {
         // Gentle camera sway
         camera.position.x = Math.sin(t * 0.15) * 0.3;
 
-        renderer.render(scene, camera);
+        if (renderer) renderer.render(scene, camera);
       }
 
       animate();

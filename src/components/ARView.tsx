@@ -71,10 +71,21 @@ export function ARView() {
       
       // Standard check with proper error handling
       if ('xr' in navigator) {
+        // Check for immersive-ar first (mobile AR)
         (navigator as any).xr?.isSessionSupported?.('immersive-ar')
           .then((supported: boolean) => {
             checked = true;
             setArSupported(supported);
+            if (!supported) {
+              // If AR not supported, check for VR (desktop Chrome)
+              (navigator as any).xr?.isSessionSupported?.('immersive-vr')
+                .then((vrSupported: boolean) => {
+                  setArSupported(vrSupported);
+                })
+                .catch(() => {
+                  // VR also not supported
+                });
+            }
           })
           .catch((error: any) => {
             checked = true;
@@ -1351,14 +1362,14 @@ export function ARView() {
              {cameraSupported ? '📸 Start Camera AR' : '📸 Camera Not Available'}
            </button>
 
-           {arSupported && !webxrActive && (
-             <button
-               onClick={startWebXR}
-               className="w-full bg-gradient-to-r from-cyan-500 to-teal-500 text-white font-semibold py-4 rounded-xl hover:from-cyan-600 hover:to-teal-600 transition-all active:scale-98"
-             >
-               🥽 WebXR Immersive AR (Quest / Glasses)
-             </button>
-           )}
+            {arSupported && !webxrActive && (
+              <button
+                onClick={startWebXR}
+                className="w-full bg-gradient-to-r from-cyan-500 to-teal-500 text-white font-semibold py-4 rounded-xl hover:from-cyan-600 hover:to-teal-600 transition-all active:scale-98"
+              >
+                🥽 WebXR Immersive (Quest / Glasses / Desktop VR)
+              </button>
+            )}
 
             {webxrActive && (
               <div className="bg-gradient-to-r from-cyan-900/30 to-teal-900/30 rounded-xl p-4 border border-cyan-500/30 text-center">

@@ -77,7 +77,8 @@ export function ARBattleVisualizer({ battleState, onMoveSelect, isActive }: ARBa
 
   const playerPet = battleState.pets[0];
   const opponentPet = battleState.pets[1];
-  const isPlayerTurn = battleState.players[0] === battleState.players[battleState.currentTurn % 2];
+  // Player's turn is on even turns (0-indexed), opponent's turn on odd turns
+  const isPlayerTurn = battleState.currentTurn % 2 === 1;
 
   return (
     <div className="absolute inset-0 pointer-events-none" style={{ zIndex: 100 }}>
