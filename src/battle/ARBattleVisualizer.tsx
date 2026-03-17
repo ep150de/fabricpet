@@ -69,6 +69,11 @@ export function ARBattleVisualizer({ battleState, onMoveSelect, isActive }: ARBa
       y: 30 + Math.random() * 20,
       color: damage > 30 ? '#ff4444' : damage > 15 ? '#ffaa44' : '#44ff44',
     }]);
+    
+    // Show move selector again after a short delay (simulating opponent's turn)
+    setTimeout(() => {
+      setShowMoveSelector(true);
+    }, 1500);
   }, [onMoveSelect]);
 
   if (!isActive || !battleState) {
@@ -77,8 +82,8 @@ export function ARBattleVisualizer({ battleState, onMoveSelect, isActive }: ARBa
 
   const playerPet = battleState.pets[0];
   const opponentPet = battleState.pets[1];
-  // Player's turn is on even turns (0-indexed), opponent's turn on odd turns
-  const isPlayerTurn = battleState.currentTurn % 2 === 1;
+  // Player can always select moves while battle is active (opponent auto-responds)
+  const isPlayerTurn = battleState.status === 'active' && !battleState.winner;
 
   return (
     <div className="absolute inset-0 pointer-events-none" style={{ zIndex: 100 }}>
@@ -168,7 +173,7 @@ export function ARBattleVisualizer({ battleState, onMoveSelect, isActive }: ARBa
       </div>
 
       {/* Move Selector Toggle */}
-      {!showMoveSelector && isPlayerTurn && (
+      {!showMoveSelector && !battleState.winner && (
         <div className="absolute bottom-20 left-4 right-4 pointer-events-auto">
           <button
             onClick={() => setShowMoveSelector(true)}
