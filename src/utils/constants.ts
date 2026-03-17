@@ -3,11 +3,11 @@
 // ============================================
 
 // Nostr relay URLs (public, free relays)
+// Note: relay.damus.io removed due to rate-limiting
+// Note: relay.nostr.band and relay.f7z.io may have WebSocket connection issues
 export const DEFAULT_RELAYS = [
-  'wss://relay.nostr.band',   // Best for indexing/discovery (supports all tag queries)
   'wss://nos.lol',            // Reliable, good uptime
   'wss://relay.primal.net',   // Primal relay — good uptime
-  'wss://relay.f7z.io',       // Permissive relay; accepts kind 30078 app data
   'wss://relay.snort.social',
   'wss://relay.damus.io',     // Sometimes unreliable — keep as fallback
 ];

@@ -67,13 +67,17 @@ export function ARView() {
 
     // Check WebXR support with better cross-browser compatibility and error handling
     useEffect(() => {
+      let checked = false;
+      
       // Standard check with proper error handling
       if ('xr' in navigator) {
-        (navigator as any).xr.isSessionSupported('immersive-ar')
+        (navigator as any).xr?.isSessionSupported?.('immersive-ar')
           .then((supported: boolean) => {
+            checked = true;
             setArSupported(supported);
           })
           .catch((error: any) => {
+            checked = true;
             console.warn('[AR] WebXR support check failed:', error);
             setArSupported(false);
           });
@@ -81,6 +85,18 @@ export function ARView() {
         // Navigator doesn't have xr property at all
         setArSupported(false);
       }
+      
+      // Timeout to prevent hanging if isSessionSupported never resolves
+      const timeout = setTimeout(() => {
+        if (!checked) {
+          console.warn('[AR] WebXR support check timed out');
+          setArSupported(false);
+        }
+      }, 3000);
+      
+      return () => {
+        clearTimeout(timeout);
+      };
     }, []);
 
    // WebXR immersive-ar session — works on Meta Quest, Meta glasses, and WebXR-capable mobile browsers
@@ -565,6 +581,13 @@ export function ARView() {
           setCameraInfo(`${settings.width}×${settings.height} • ${track.label}`);
         }
 
+        // CRITICAL FIX: Set cameraActive FIRST to trigger video element render
+        // Then wait for next render cycle before trying to access videoRef.current
+        setCameraActive(true);
+
+        // Wait for next render cycle so video element exists in DOM
+        await new Promise(resolve => setTimeout(resolve, 50));
+
         if (videoRef.current) {
           // Ensure video element is visible and has correct dimensions
           videoRef.current.style.display = 'block';
@@ -614,7 +637,6 @@ export function ARView() {
             console.log('[AR] Camera playing successfully');
             // Only set flags when video actually plays
             setCameraReady(true);
-            setCameraActive(true);
           } catch (playError: any) {
             console.warn('[AR] Video play failed (may be autoplay policy):', playError.name);
             
@@ -630,7 +652,6 @@ export function ARView() {
                       console.log('[AR] Camera playing after user interaction');
                       // Set flags AFTER user interaction succeeds
                       setCameraReady(true);
-                      setCameraActive(true);
                       setError(null);
                     } catch (e) {
                       console.error('[AR] Failed to play even after interaction:', e);
@@ -640,15 +661,15 @@ export function ARView() {
                   container.removeEventListener('click', playOnInteraction);
                 };
                 container.addEventListener('click', playOnInteraction);
-                // Show message to user - don't set camera flags yet!
+                // Show message to user - don't set cameraReady yet!
                 setError('Camera detected. Tap anywhere to start the video feed.');
-                setCameraActive(true); // Allow UI to show, but cameraReady stays false until video plays
-                return; // CRITICAL: Exit here, don't set cameraReady yet
               }
             } else {
               throw new Error(`Video element failed to play: ${playError.message}`);
             }
           }
+        } else {
+          throw new Error('Video element not found after setting cameraActive');
         }
       } catch (e: any) {
         let msg = '';
@@ -679,6 +700,10 @@ export function ARView() {
             
             streamRef.current = stream;
             
+            // Set cameraActive and wait for video element
+            setCameraActive(true);
+            await new Promise(resolve => setTimeout(resolve, 50));
+            
             if (videoRef.current) {
               videoRef.current.srcObject = stream;
               await videoRef.current.play();
@@ -686,7 +711,6 @@ export function ARView() {
             }
             
             setCameraReady(true);
-            setCameraActive(true);
             return; // Success with fallback
           } catch (fallbackError: any) {
             msg = `Camera error even with fallback settings: ${fallbackError?.message || 'Unknown error'}`;

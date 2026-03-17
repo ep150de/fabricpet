@@ -241,6 +241,30 @@ export async function pushSceneJSON(
     return false;
   }
 
+  // Note: The MSF service (Scene Assembler) is a web UI, not an API server.
+  // The API endpoints /api/scene/json and /api/scene/update don't exist.
+  // We'll try them anyway in case the server is updated, but expect them to fail.
+  // The clipboard fallback is the primary method for now.
+  
+  // Check if the API endpoints might be available by doing a quick OPTIONS request
+  try {
+    const checkResponse = await fetch(`${RP1_CONFIG.msfServiceUrl}/api/scene/json`, {
+      method: 'OPTIONS',
+      signal: AbortSignal.timeout(2000),
+    });
+    
+    // If we get a 405 Method Not Allowed, the endpoint might exist
+    // If we get 404, the endpoint definitely doesn't exist
+    if (checkResponse.status === 404) {
+      console.warn('[MVMF Bridge] API endpoints not available on MSF service — use clipboard fallback');
+      return false;
+    }
+  } catch {
+    // If OPTIONS request fails, assume endpoints don't exist
+    console.warn('[MVMF Bridge] Could not check API endpoints — use clipboard fallback');
+    return false;
+  }
+
   try {
     // The Scene Assembler accepts JSON via its code editor endpoint
     const response = await fetch(`${RP1_CONFIG.msfServiceUrl}/api/scene/json`, {
