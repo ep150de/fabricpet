@@ -17,6 +17,7 @@ import type { ChatEntry } from '../llm/ChatEngine';
 import { fetchInscriptionContent, categorizeContentType, load3DModelFromContent } from '../avatar/OrdinalRenderer';
 import { loadDefaultKitten, getAvatarById, loadVRMModel } from '../avatar/AvatarLoader';
 import { ARBattleVisualizer } from '../battle/ARBattleVisualizer';
+import { executeTurn } from '../battle/BattleEngine';
 import { 
   detectGesture, 
   getReactionForGesture, 
@@ -48,6 +49,46 @@ export function ARView() {
   const [battleActive, setBattleActive] = useState(false);
   const [battleState, setBattleState] = useState<any>(null);
 
+  // Handle move selection in battle mode
+  const handleMoveSelect = useCallback((moveId: string) => {
+    if (!battleState || battleState.status !== 'active') return;
+
+    // Update battle state with selected move
+    const newState = { ...battleState };
+    const currentTurn = newState.currentTurn;
+    
+    // Create a battle turn result (simplified)
+    const turn = {
+      turn: currentTurn,
+      move: moveId,
+      attacker: 'player1',
+      damage: 0,
+      effects: [],
+    };
+    
+    // Execute turn using battle engine
+    try {
+      const opponentMove = 'tackle'; // Simple opponent AI - always uses tackle
+      const result = executeTurn(newState, moveId, opponentMove);
+      
+      // Update battle state with result
+      setBattleState(result);
+      
+      // Log the turn
+      console.log('[AR] Turn executed:', moveId, 'vs', opponentMove);
+      
+      // Check if battle is over
+      if (result.winner) {
+        console.log('[AR] Battle over! Winner:', result.winner);
+        setTimeout(() => {
+          setBattleActive(false);
+        }, 3000);
+      }
+    } catch (error) {
+      console.error('[AR] Battle turn failed:', error);
+    }
+  }, [battleState]);
+
   // Pre-flight camera support check
   useEffect(() => {
     // Check secure context (HTTPS required for camera)
@@ -68,6 +109,11 @@ export function ARView() {
     // Check WebXR support with better cross-browser compatibility and error handling
     useEffect(() => {
       let checked = false;
+      
+      // Detect specific browsers for better messaging
+      const isXverse = /Xverse/i.test(navigator.userAgent);
+      const isChrome = /Chrome/i.test(navigator.userAgent) && !/Chromium/i.test(navigator.userAgent);
+      const isMobile = /Mobi|Android/i.test(navigator.userAgent);
       
       // Standard check with proper error handling
       if ('xr' in navigator) {
@@ -95,6 +141,11 @@ export function ARView() {
       } else {
         // Navigator doesn't have xr property at all
         setArSupported(false);
+        
+        // Provide helpful message for browsers without WebXR
+        if (isXverse) {
+          console.log('[AR] Xverse browser detected - WebXR not available');
+        }
       }
       
       // Timeout to prevent hanging if isSessionSupported never resolves
@@ -1443,16 +1494,19 @@ export function ARView() {
                 📸 Camera AR overlays your pet on the camera feed.
                 {arSupported ? ' 🥽 WebXR works on Meta Quest, Meta glasses, and XR browsers!' : ''}
               </p>
-              {!arSupported && !('xr' in navigator) && (
-                <div className="mt-2 p-2 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
-                  <p className="text-xs text-yellow-400">
-                    ⚠️ WebXR not available in this browser
-                  </p>
-                  <p className="text-xs text-yellow-500 mt-1">
-                    Try Chrome on Android, Safari on iOS, or Meta Quest Browser
-                  </p>
-                </div>
-              )}
+                {!arSupported && !('xr' in navigator) && (
+                 <div className="mt-2 p-2 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
+                   <p className="text-xs text-yellow-400">
+                     ⚠️ WebXR not available in this browser
+                   </p>
+                   <p className="text-xs text-yellow-500 mt-1">
+                     WebXR requires: Chrome (Android), Safari (iOS 15+), Meta Quest Browser, or desktop Chrome with WebXR flag enabled.
+                   </p>
+                   <p className="text-xs text-gray-400 mt-1">
+                     Note: Xverse wallet browser does not support WebXR. Use Chrome or Safari for AR/XR features.
+                   </p>
+                 </div>
+               )}
             </div>
          </div>
        ) : (
@@ -1524,10 +1578,7 @@ export function ARView() {
             <ARBattleVisualizer
               battleState={battleState}
               isActive={battleActive}
-              onMoveSelect={(moveId) => {
-                console.log('[AR] Move selected:', moveId);
-                // In a real implementation, this would send the move to the battle engine
-              }}
+              onMoveSelect={handleMoveSelect}
             />
             
             {/* Battle Controls */}

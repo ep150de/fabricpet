@@ -139,16 +139,42 @@ export function HomeView() {
 
   // 3D Kawaii Home Scene
   useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
+    const container = canvasRef.current;
+    if (!container) return;
 
     let animationId: number;
     let cleanup = false;
     let renderer: any = null;
     let scene: any = null;
+    let canvas: HTMLCanvasElement | null = null;
+    let contextLost = false;
+
+    // Event handlers for WebGL context - defined outside async function for cleanup
+    const handleContextLost = (e: Event) => {
+      e.preventDefault();
+      console.warn('[HomeView] WebGL context lost');
+      contextLost = true;
+      cleanup = true;
+    };
+
+    const handleContextRestored = () => {
+      console.log('[HomeView] WebGL context restored');
+      contextLost = false;
+    };
 
     (async () => {
       const THREE = await import('three');
+
+      // CRITICAL: Create a NEW canvas element instead of reusing the same one
+      // This prevents WebGL context invalidation when effect re-runs
+      canvas = document.createElement('canvas');
+      canvas.style.width = '100%';
+      canvas.style.height = '100%';
+      canvas.style.display = 'block';
+      container.appendChild(canvas);
+
+      canvas.addEventListener('webglcontextlost', handleContextLost);
+      canvas.addEventListener('webglcontextrestored', handleContextRestored);
 
       scene = new THREE.Scene();
       const camera = new THREE.PerspectiveCamera(50, canvas.clientWidth / canvas.clientHeight, 0.1, 100);
@@ -415,8 +441,13 @@ export function HomeView() {
       cleanup = true;
       if (animationId) cancelAnimationFrame(animationId);
       
+      // Remove WebGL context event listeners
+      if (canvas) {
+        canvas.removeEventListener('webglcontextlost', handleContextLost);
+        canvas.removeEventListener('webglcontextrestored', handleContextRestored);
+      }
+      
       // Dispose of WebGL renderer and release context
-      // This is critical to prevent WebGL context leaks when navigating between views
       if (renderer) {
         try {
           renderer.dispose();
@@ -426,6 +457,12 @@ export function HomeView() {
         }
         renderer = null;
       }
+      
+      // Remove canvas from DOM
+      if (canvas && canvas.parentNode) {
+        canvas.parentNode.removeChild(canvas);
+      }
+      canvas = null;
       
       // Clear scene reference
       scene = null;
