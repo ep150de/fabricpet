@@ -421,7 +421,7 @@ export function HomeView() {
       // Clear scene reference
       scene = null;
     };
-  }, [pet.elementalType, pet.equippedOrdinal]);
+  }, [pet.elementalType, pet.equippedOrdinal, pet.avatarId]);
 
   return (
     <div className="p-4 max-w-lg mx-auto">
