@@ -5,8 +5,8 @@
 // directly via ordinals.com URLs. No manual re-publishing needed!
 // ============================================
 
-import type { Pet, OrdinalInscription } from '../types';
-import { ORDINALS_CONTENT_BASE, RP1_CONFIG } from '../utils/constants';
+import type { Pet, OrdinalInscription, HomeState } from '../types';
+import { ORDINALS_CONTENT_BASE, RP1_CONFIG, HOME_THEMES } from '../utils/constants';
 
 // Scene Assembler JSON types
 export interface SceneTransform {
@@ -69,15 +69,70 @@ export function generateSceneJSON(
     sceneSize?: number;
     petPosition?: [number, number, number];
     includeImages?: boolean;
+    home?: HomeState;
   } = {}
 ): SceneJSON {
   const {
     sceneSize = 20,
     petPosition = [0, 0.5, 0],
     includeImages = false,
+    home,
   } = options;
 
   const children: SceneNode[] = [];
+
+  // 1. Add home theme environment if available
+  if (home) {
+    const theme = HOME_THEMES.find(t => t.id === home.theme) || HOME_THEMES[0];
+    
+    // Add ground plane with theme color
+    const themeColors: Record<string, string> = {
+      room: '#f5e6d3',
+      garden: '#7cba3d',
+      beach: '#f5deb3',
+      castle: '#808080',
+      space: '#1a1a2e',
+    };
+    const groundColor = themeColors[home.theme] || '#f5e6d3';
+    
+    children.push({
+      sName: `${pet.name}'s Home (${theme.name})`,
+      pTransform: {
+        aPosition: [0, 0, 0],
+        aRotation: [0, 0, 0, 1],
+        aScale: [sceneSize, 0.01, sceneSize],
+      },
+      aBound: [sceneSize, 0.01, sceneSize],
+      aChildren: [
+        {
+          sName: `Theme: ${theme.name}`,
+          pTransform: {
+            aPosition: [0, 0, 0],
+            aRotation: [0, 0, 0, 1],
+            aScale: [1, 1, 1],
+          },
+          aBound: [sceneSize, 0.01, sceneSize],
+          aChildren: [],
+        }
+      ],
+    });
+
+    // Add furniture items from home state
+    if (home.furniture && home.furniture.length > 0) {
+      home.furniture.forEach((item, index) => {
+        children.push({
+          sName: `${item.type}_${item.id}`,
+          pTransform: {
+            aPosition: item.position,
+            aRotation: [0, 0, 0, 1],
+            aScale: [0.5, 0.5, 0.5],
+          },
+          aBound: [0.5, 0.5, 0.5],
+          aChildren: [],
+        });
+      });
+    }
+  }
 
   // 1. Add the pet as the central object
   if (pet.equippedOrdinal) {

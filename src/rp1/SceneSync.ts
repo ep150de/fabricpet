@@ -2,7 +2,7 @@
 // Scene Sync — Auto-push scene to RP1 when wallet changes
 // ============================================
 
-import type { Pet, OrdinalInscription } from '../types';
+import type { Pet, OrdinalInscription, HomeState } from '../types';
 import { generateSceneJSON } from './SceneJSONGenerator';
 import { pushSceneJSON } from './MVMFBridge';
 
@@ -24,6 +24,7 @@ function walletHash(inscriptions: OrdinalInscription[], equippedOrdinal: string 
 export function scheduleSceneSync(
   pet: Pet,
   inscriptions: OrdinalInscription[],
+  home?: HomeState,
   onSyncStart?: () => void,
   onSyncComplete?: (success: boolean) => void
 ): void {
@@ -46,7 +47,10 @@ export function scheduleSceneSync(
     onSyncStart?.();
 
     try {
-      const sceneJSON = generateSceneJSON(pet, inscriptions, { includeImages: true });
+      const sceneJSON = generateSceneJSON(pet, inscriptions, {
+        includeImages: true,
+        home,
+      });
       const success = await pushSceneJSON(sceneJSON);
       onSyncComplete?.(success);
 
@@ -67,11 +71,15 @@ export function scheduleSceneSync(
  */
 export async function forceSyncScene(
   pet: Pet,
-  inscriptions: OrdinalInscription[]
+  inscriptions: OrdinalInscription[],
+  home?: HomeState
 ): Promise<boolean> {
   if (inscriptions.length === 0 && !pet.equippedOrdinal) return false;
 
-  const sceneJSON = generateSceneJSON(pet, inscriptions, { includeImages: true });
+  const sceneJSON = generateSceneJSON(pet, inscriptions, {
+    includeImages: true,
+    home,
+  });
   const success = await pushSceneJSON(sceneJSON);
   lastSyncHash = walletHash(inscriptions, pet.equippedOrdinal);
   return success;

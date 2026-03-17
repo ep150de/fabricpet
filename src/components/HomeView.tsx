@@ -89,7 +89,7 @@ export function HomeView() {
     setNotification({ message: 'Syncing scene to RP1...', emoji: '🔄' });
 
     try {
-      const success = await forceSyncScene(pet, wallet.inscriptions);
+      const success = await forceSyncScene(pet, wallet.inscriptions, home);
       if (success) {
         setQuickSyncResult('success');
         setNotification({ message: 'Scene synced to RP1!', emoji: '✅' });
@@ -514,7 +514,10 @@ export function HomeView() {
               setPushing(true);
               setPushResult(null);
               try {
-                const sceneJSON = generateSceneJSON(pet, wallet.inscriptions);
+                const sceneJSON = generateSceneJSON(pet, wallet.inscriptions, {
+                  includeImages: true,
+                  home: home,
+                });
                 const pushed = await pushSceneJSON(sceneJSON);
                 if (pushed) {
                   setPushResult('success');
@@ -526,7 +529,10 @@ export function HomeView() {
               } catch {
                 // Timeout or network error — try clipboard
                 try {
-                  const sceneJSON = generateSceneJSON(pet, wallet.inscriptions);
+                  const sceneJSON = generateSceneJSON(pet, wallet.inscriptions, {
+                    includeImages: true,
+                    home: home,
+                  });
                   const copied = await copySceneJSONToClipboard(sceneJSON);
                   setPushResult(copied ? 'copied' : 'error');
                 } catch {

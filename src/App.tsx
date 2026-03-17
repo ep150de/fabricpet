@@ -24,7 +24,7 @@ import { startRP1Listener, stopRP1Listener } from './rp1/RP1Listener';
 import { Notification } from './components/Notification';
 
 export default function App() {
-  const { identity, setIdentity, pet, setPet, currentView, setView, isLoading, setLoading, notification, setNotification, wallet, roster, setRoster } = useStore();
+  const { identity, setIdentity, pet, setPet, home, currentView, setView, isLoading, setLoading, notification, setNotification, wallet, roster, setRoster } = useStore();
 
   // Initialize identity and load pet state
   const initialize = useCallback(async () => {
@@ -184,6 +184,7 @@ export default function App() {
     scheduleSceneSync(
       pet, 
       wallet.inscriptions,
+      home,
       // onSyncStart
       () => {
         setNotification({ message: 'Syncing scene to RP1...', emoji: '🔄' });
