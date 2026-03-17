@@ -566,6 +566,13 @@ export function ARView() {
         }
 
         if (videoRef.current) {
+          // Ensure video element is visible and has correct dimensions
+          videoRef.current.style.display = 'block';
+          videoRef.current.style.width = '100%';
+          videoRef.current.style.height = '100%';
+          videoRef.current.style.backgroundColor = 'black';
+          videoRef.current.style.objectFit = 'cover';
+          
           videoRef.current.srcObject = stream;
           
           // Wait for video metadata to load before playing
@@ -1414,7 +1421,7 @@ export function ARView() {
             </div>
          </div>
        ) : (
-        <div ref={containerRef} className="relative rounded-2xl overflow-hidden border border-gray-800" style={{ height: '400px' }}>
+        <div ref={containerRef} className="relative rounded-2xl overflow-hidden border border-gray-800 bg-black" style={{ height: '400px' }}>
           {/* Camera feed — z-index 0 */}
           <video
             ref={videoRef}
@@ -1422,7 +1429,7 @@ export function ARView() {
             playsInline
             muted
             className="absolute inset-0 w-full h-full object-cover"
-            style={{ zIndex: 0 }}
+            style={{ zIndex: 0, display: 'block', backgroundColor: 'black' }}
           />
 
           {/* Loading indicator while camera initializes */}
