@@ -68,18 +68,18 @@ export async function searchAvatars(query: string): Promise<OSAAvatar[]> {
  */
 export async function loadVRMModel(
   modelUrl: string,
-  scene: THREE.Scene
+  scene: THREE.Scene,
+  timeoutMs = 15000,
 ): Promise<unknown> {
   // Dynamic imports for tree-shaking
   const THREE = await import('three');
   const { GLTFLoader } = await import('three/examples/jsm/loaders/GLTFLoader.js');
   const { VRMLoaderPlugin } = await import('@pixiv/three-vrm');
 
-  return new Promise((resolve, reject) => {
+  const loadPromise = new Promise<unknown>((resolve, reject) => {
     const loader = new GLTFLoader();
     loader.register((parser) => new VRMLoaderPlugin(parser));
 
-    // Handle CORS for Arweave URLs
     loader.setCrossOrigin('anonymous');
 
     loader.load(
@@ -87,24 +87,30 @@ export async function loadVRMModel(
       (gltf) => {
         const vrm = (gltf as unknown as Record<string, Record<string, unknown>>).userData?.vrm;
         if (vrm) {
-          // Rotate to face camera (VRM models face +Z by default)
           const root = (vrm as Record<string, THREE.Object3D>).scene;
           root.rotation.y = Math.PI;
           scene.add(root);
           resolve(vrm);
         } else {
-          // Fallback: add as regular GLTF
           scene.add(gltf.scene);
           resolve(gltf);
         }
       },
       undefined,
       (error) => {
-        console.error('Failed to load VRM model:', error);
+        console.error(`[AvatarLoader] Failed to load VRM from ${modelUrl}:`, error);
         reject(error);
       }
     );
   });
+
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    setTimeout(() => {
+      reject(new Error(`[AvatarLoader] VRM load timeout after ${timeoutMs}ms: ${modelUrl}`));
+    }, timeoutMs);
+  });
+
+  return Promise.race([loadPromise, timeoutPromise]);
 }
 
 /**

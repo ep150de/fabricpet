@@ -166,8 +166,9 @@ export function HomeView() {
       try {
         const THREE = await import('three');
 
-        const width = container.clientWidth;
-        const height = container.clientHeight;
+        const rect = container.getBoundingClientRect();
+        const width = Math.round(rect.width) || 400;
+        const height = Math.round(rect.height) || 280;
         if (width === 0 || height === 0) {
           retryId = requestAnimationFrame(initScene);
           return;
