@@ -139,14 +139,13 @@ export function HomeView() {
 
   // 3D Kawaii Home Scene
   useEffect(() => {
-    const container = canvasRef.current;
-    if (!container) return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
 
     let animationId: number;
     let cleanup = false;
     let renderer: any = null;
     let scene: any = null;
-    let canvas: HTMLCanvasElement | null = null;
     let contextLost = false;
 
     const handleContextLost = (e: Event) => {
@@ -161,38 +160,28 @@ export function HomeView() {
       contextLost = false;
     };
 
-    const initScene = async () => {
+    canvas.addEventListener('webglcontextlost', handleContextLost);
+    canvas.addEventListener('webglcontextrestored', handleContextRestored);
+
+    (async () => {
+      const THREE = await import('three');
+
+      scene = new THREE.Scene();
+      const camera = new THREE.PerspectiveCamera(50, canvas.clientWidth / canvas.clientHeight, 0.1, 100);
+      camera.position.set(0, 2.5, 5);
+      camera.lookAt(0, 0.5, 0);
+
       try {
-        const THREE = await import('three');
+        renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
+      } catch (e) {
+        console.error('[HomeView] WebGLRenderer failed to initialize:', e);
+        return;
+      }
+      if (cleanup) return;
 
-        canvas = document.createElement('canvas');
-        canvas.style.width = '100%';
-        canvas.style.height = '100%';
-        canvas.style.display = 'block';
-        container.appendChild(canvas);
-
-        canvas.addEventListener('webglcontextlost', handleContextLost);
-        canvas.addEventListener('webglcontextrestored', handleContextRestored);
-
-        const w = canvas.clientWidth;
-        const h = canvas.clientHeight;
-
-        scene = new THREE.Scene();
-        const camera = new THREE.PerspectiveCamera(50, w / h, 0.1, 100);
-        camera.position.set(0, 2.5, 5);
-        camera.lookAt(0, 0.5, 0);
-
-        try {
-          renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
-        } catch (e) {
-          console.error('[HomeView] WebGLRenderer failed to initialize:', e);
-          return;
-        }
-        if (cleanup) return;
-
-        renderer.setSize(w, h);
-        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-        renderer.setClearColor(0x0f0f23, 1);
+      renderer.setSize(canvas.clientWidth, canvas.clientHeight);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      renderer.setClearColor(0x0f0f23, 1);
 
         // Pastel ambient light
         const ambientLight = new THREE.AmbientLight(0xffc0cb, 0.6);
@@ -426,21 +415,16 @@ export function HomeView() {
         }
 
         animate();
-      } catch (e) {
+      })().catch((e) => {
         console.error('[HomeView] initScene failed:', e);
-      }
-    };
-
-    initScene();
+      });
 
     return () => {
       cleanup = true;
       if (animationId) cancelAnimationFrame(animationId);
 
-      if (canvas) {
-        canvas.removeEventListener('webglcontextlost', handleContextLost);
-        canvas.removeEventListener('webglcontextrestored', handleContextRestored);
-      }
+      canvas.removeEventListener('webglcontextlost', handleContextLost);
+      canvas.removeEventListener('webglcontextrestored', handleContextRestored);
 
       if (renderer) {
         try {
@@ -451,11 +435,6 @@ export function HomeView() {
         }
         renderer = null;
       }
-
-      if (canvas?.parentNode) {
-        canvas.parentNode.removeChild(canvas);
-      }
-      canvas = null;
 
       scene = null;
     };
