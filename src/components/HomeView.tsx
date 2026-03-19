@@ -143,13 +143,13 @@ export function HomeView() {
     if (!container) return;
 
     let animationId: number;
+    let retryId: number | undefined;
     let cleanup = false;
     let renderer: any = null;
     let scene: any = null;
     let canvas: HTMLCanvasElement | null = null;
     let contextLost = false;
 
-    // Event handlers for WebGL context - defined outside async function for cleanup
     const handleContextLost = (e: Event) => {
       e.preventDefault();
       console.warn('[HomeView] WebGL context lost');
@@ -162,300 +162,294 @@ export function HomeView() {
       contextLost = false;
     };
 
-    (async () => {
-      const THREE = await import('three');
-
-      // Get actual pixel dimensions BEFORE creating canvas
-      // Use getBoundingClientRect() for accurate CSS-computed size
-      const rect = container.getBoundingClientRect();
-      const pixelWidth = Math.round(rect.width) || 400;
-      const pixelHeight = Math.round(rect.height) || 280;
-
-      // CRITICAL: Create a NEW canvas element with explicit pixel dimensions
-      // CSS width/height alone causes clientWidth/clientHeight to be 0 on iOS/mobile
-      canvas = document.createElement('canvas');
-      canvas.width = pixelWidth;
-      canvas.height = pixelHeight;
-      canvas.style.width = '100%';
-      canvas.style.height = '100%';
-      canvas.style.display = 'block';
-      container.appendChild(canvas);
-
-      canvas.addEventListener('webglcontextlost', handleContextLost);
-      canvas.addEventListener('webglcontextrestored', handleContextRestored);
-
-      scene = new THREE.Scene();
-      const camera = new THREE.PerspectiveCamera(50, pixelWidth / pixelHeight, 0.1, 100);
-      camera.position.set(0, 2.5, 5);
-      camera.lookAt(0, 0.5, 0);
-
+    const initScene = async () => {
       try {
-        renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
-      } catch (e) {
-        console.error('[HomeView] WebGLRenderer failed to initialize:', e);
-        return; // Bail out if WebGL is not available
-      }
-      if (cleanup) return; // Check cleanup after renderer creation
-      
-      renderer.setSize(pixelWidth, pixelHeight);
-      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-      renderer.setClearColor(0x0f0f23, 1);
+        const THREE = await import('three');
 
-      // Pastel ambient light
-      const ambientLight = new THREE.AmbientLight(0xffc0cb, 0.6);
-      scene.add(ambientLight);
+        const width = container.clientWidth;
+        const height = container.clientHeight;
+        if (width === 0 || height === 0) {
+          retryId = requestAnimationFrame(initScene);
+          return;
+        }
 
-      // Warm point light
-      const pointLight = new THREE.PointLight(0xffd700, 1.2, 10);
-      pointLight.position.set(2, 3, 2);
-      scene.add(pointLight);
+        canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        canvas.style.width = '100%';
+        canvas.style.height = '100%';
+        canvas.style.display = 'block';
+        container.appendChild(canvas);
 
-      // Soft directional light
-      const dirLight = new THREE.DirectionalLight(0xe0e0ff, 0.5);
-      dirLight.position.set(-2, 4, 1);
-      scene.add(dirLight);
+        canvas.addEventListener('webglcontextlost', handleContextLost);
+        canvas.addEventListener('webglcontextrestored', handleContextRestored);
 
-      // --- Floor (pastel checkerboard) ---
-      const floorGeo = new THREE.PlaneGeometry(6, 6);
-      const floorMat = new THREE.MeshStandardMaterial({ color: 0xf5e6d3, roughness: 0.8 });
-      const floor = new THREE.Mesh(floorGeo, floorMat);
-      floor.rotation.x = -Math.PI / 2;
-      scene.add(floor);
+        scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(50, width / height, 0.1, 100);
+        camera.position.set(0, 2.5, 5);
+        camera.lookAt(0, 0.5, 0);
 
-      // --- Back wall (rounded look via box) ---
-      const wallGeo = new THREE.BoxGeometry(6, 3, 0.1);
-      const wallMat = new THREE.MeshStandardMaterial({ color: 0xffe4e1, roughness: 0.9 });
-      const backWall = new THREE.Mesh(wallGeo, wallMat);
-      backWall.position.set(0, 1.5, -3);
-      scene.add(backWall);
-
-      // Side walls
-      const sideWallGeo = new THREE.BoxGeometry(0.1, 3, 6);
-      const leftWall = new THREE.Mesh(sideWallGeo, wallMat.clone());
-      leftWall.position.set(-3, 1.5, 0);
-      ((leftWall.material as unknown as Record<string, unknown>).color as { set: (c: number) => void }).set(0xffd1dc);
-      scene.add(leftWall);
-
-      const rightWall = new THREE.Mesh(sideWallGeo, wallMat.clone());
-      rightWall.position.set(3, 1.5, 0);
-      ((rightWall.material as unknown as Record<string, unknown>).color as { set: (c: number) => void }).set(0xffd1dc);
-      scene.add(rightWall);
-
-      // --- Cute Bed (rounded box + pillow) ---
-      const bedGeo = new THREE.BoxGeometry(1.4, 0.3, 0.9, 4, 4, 4);
-      const bedMat = new THREE.MeshStandardMaterial({ color: 0xb19cd9, roughness: 0.6 });
-      const bed = new THREE.Mesh(bedGeo, bedMat);
-      bed.position.set(-1.8, 0.15, -2);
-      scene.add(bed);
-
-      const pillowGeo = new THREE.SphereGeometry(0.25, 16, 16);
-      pillowGeo.scale(1.2, 0.6, 1);
-      const pillowMat = new THREE.MeshStandardMaterial({ color: 0xffc0cb });
-      const pillow = new THREE.Mesh(pillowGeo, pillowMat);
-      pillow.position.set(-1.8, 0.35, -2.2);
-      scene.add(pillow);
-
-      // --- Food Bowl ---
-      const bowlGeo = new THREE.CylinderGeometry(0.25, 0.18, 0.15, 16);
-      const bowlMat = new THREE.MeshStandardMaterial({ color: 0xff9a9e, roughness: 0.4, metalness: 0.2 });
-      const bowl = new THREE.Mesh(bowlGeo, bowlMat);
-      bowl.position.set(1.8, 0.075, -1.5);
-      scene.add(bowl);
-
-      // Food in bowl
-      const foodGeo = new THREE.SphereGeometry(0.18, 16, 16);
-      foodGeo.scale(1, 0.3, 1);
-      const foodMat = new THREE.MeshStandardMaterial({ color: 0xffa07a });
-      const food = new THREE.Mesh(foodGeo, foodMat);
-      food.position.set(1.8, 0.15, -1.5);
-      scene.add(food);
-
-      // --- Water Bowl ---
-      const waterBowl = new THREE.Mesh(bowlGeo.clone(), new THREE.MeshStandardMaterial({ color: 0x87ceeb, roughness: 0.3, metalness: 0.3 }));
-      waterBowl.position.set(2.2, 0.075, -1.0);
-      scene.add(waterBowl);
-
-      // --- Toy Ball ---
-      const ballGeo = new THREE.SphereGeometry(0.15, 16, 16);
-      const ballMat = new THREE.MeshStandardMaterial({ color: 0xff6b6b, roughness: 0.3 });
-      const ball = new THREE.Mesh(ballGeo, ballMat);
-      ball.position.set(0.8, 0.15, 0.5);
-      scene.add(ball);
-
-      // --- Plant ---
-      const potGeo = new THREE.CylinderGeometry(0.2, 0.15, 0.3, 8);
-      const potMat = new THREE.MeshStandardMaterial({ color: 0xd4a574 });
-      const pot = new THREE.Mesh(potGeo, potMat);
-      pot.position.set(-2.3, 0.15, 0.5);
-      scene.add(pot);
-
-      const leafGeo = new THREE.SphereGeometry(0.3, 8, 8);
-      const leafMat = new THREE.MeshStandardMaterial({ color: 0x98d8a0 });
-      const leaves = new THREE.Mesh(leafGeo, leafMat);
-      leaves.position.set(-2.3, 0.5, 0.5);
-      scene.add(leaves);
-
-      // --- Pet (cute bouncing sphere) ---
-      const petBodyGeo = new THREE.SphereGeometry(0.45, 32, 32);
-      const petColors: Record<string, number> = {
-        fire: 0xff6b6b, water: 0x6bb5ff, earth: 0xa0d468,
-        air: 0xc0e8ff, light: 0xfff176, dark: 0x9c6bff, neutral: 0xb19cd9,
-      };
-      const petColor = petColors[pet.elementalType] || 0xb19cd9;
-      const petBodyMat = new THREE.MeshStandardMaterial({ color: petColor, roughness: 0.3, metalness: 0.1 });
-      const petBody = new THREE.Mesh(petBodyGeo, petBodyMat);
-      petBody.position.set(0, 0.8, 0);
-      scene.add(petBody);
-
-      // --- Load VRM model if avatarId is set ---
-      if (pet.avatarId && !pet.equippedOrdinal) {
         try {
-          // Fetch avatar from OSA Gallery
-          const avatar = await getAvatarById(pet.avatarId);
-          if (cleanup) return; // CRITICAL: Check if effect was cleaned up
-          if (avatar && avatar.modelFileUrl) {
-            // Load VRM model
-            const vrmModel = await loadVRMModel(avatar.modelFileUrl, scene);
-            if (cleanup) return; // CRITICAL: Check if effect was cleaned up
-            if (vrmModel && (vrmModel as any).scene) {
-              // Hide default sphere, add VRM model
-              petBody.visible = false;
-              const vrmScene = (vrmModel as any).scene;
-              vrmScene.position.set(0, 0, 0); // Adjust position as needed
-              vrmScene.scale.set(0.5, 0.5, 0.5); // Scale down to fit in the scene
-              scene.add(vrmScene);
-              console.log('[HomeView] VRM model loaded successfully');
-            }
-          }
-        } catch (error) {
-          console.warn('[HomeView] Failed to load VRM model, using sphere:', error);
-          // Continue with sphere pet
+          renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
+        } catch (e) {
+          console.error('[HomeView] WebGLRenderer failed to initialize:', e);
+          return;
         }
-      }
-
-      // --- Load ordinal inscription as texture/model (overrides VRM if equipped) ---
-      if (pet.equippedOrdinal) {
-        fetchInscriptionContent(pet.equippedOrdinal).then(async (content) => {
-          if (!content || cleanup) return;
-          const category = categorizeContentType(content.contentType);
-          if (category === 'image') {
-            await applyImageTextureToMesh(content, petBody, THREE);
-          } else if (category === '3d-model') {
-            // Hide default sphere, load 3D model instead
-            petBody.visible = false;
-            await load3DModelFromContent(content, scene, THREE);
-          }
-        }).catch((e) => console.warn('[HomeView] Ordinal load failed:', e));
-      }
-
-      // Eyes
-      const eyeGeo = new THREE.SphereGeometry(0.07, 16, 16);
-      const eyeMat = new THREE.MeshStandardMaterial({ color: 0xffffff });
-      const pupilGeo = new THREE.SphereGeometry(0.04, 16, 16);
-      const pupilMat = new THREE.MeshStandardMaterial({ color: 0x222222 });
-
-      const leftEye = new THREE.Mesh(eyeGeo, eyeMat);
-      leftEye.position.set(-0.13, 0.9, 0.38);
-      scene.add(leftEye);
-      const leftPupil = new THREE.Mesh(pupilGeo, pupilMat);
-      leftPupil.position.set(-0.13, 0.9, 0.43);
-      scene.add(leftPupil);
-
-      const rightEye = new THREE.Mesh(eyeGeo, eyeMat);
-      rightEye.position.set(0.13, 0.9, 0.38);
-      scene.add(rightEye);
-      const rightPupil = new THREE.Mesh(pupilGeo, pupilMat);
-      rightPupil.position.set(0.13, 0.9, 0.43);
-      scene.add(rightPupil);
-
-      // Blush cheeks
-      const blushGeo = new THREE.SphereGeometry(0.06, 16, 16);
-      blushGeo.scale(1.3, 0.7, 0.5);
-      const blushMat = new THREE.MeshStandardMaterial({ color: 0xff9a9e, transparent: true, opacity: 0.6 });
-      const leftBlush = new THREE.Mesh(blushGeo, blushMat);
-      leftBlush.position.set(-0.25, 0.78, 0.35);
-      scene.add(leftBlush);
-      const rightBlush = new THREE.Mesh(blushGeo.clone(), blushMat);
-      rightBlush.position.set(0.25, 0.78, 0.35);
-      scene.add(rightBlush);
-
-      // --- Floating hearts/stars ---
-      const particles: InstanceType<typeof THREE.Mesh>[] = [];
-      const particleShapes = ['heart', 'star'];
-      for (let i = 0; i < 8; i++) {
-        const shape = particleShapes[i % 2];
-        const geo = shape === 'heart'
-          ? new THREE.SphereGeometry(0.04, 8, 8)
-          : new THREE.OctahedronGeometry(0.04);
-        const mat = new THREE.MeshStandardMaterial({
-          color: shape === 'heart' ? 0xff6b9d : 0xffd700,
-          emissive: shape === 'heart' ? 0xff6b9d : 0xffd700,
-          emissiveIntensity: 0.5,
-          transparent: true,
-          opacity: 0.7,
-        });
-        const particle = new THREE.Mesh(geo, mat);
-        particle.position.set(
-          (Math.random() - 0.5) * 4,
-          1 + Math.random() * 2,
-          (Math.random() - 0.5) * 4
-        );
-        particle.userData = { baseY: particle.position.y, speed: 0.3 + Math.random() * 0.5, offset: Math.random() * Math.PI * 2 };
-        scene.add(particle);
-        particles.push(particle);
-      }
-
-      // --- Animation Loop ---
-      const clock = new THREE.Clock();
-
-      function animate() {
         if (cleanup) return;
-        animationId = requestAnimationFrame(animate);
-        const t = clock.getElapsedTime();
 
-        // Pet bounce
-        petBody.position.y = 0.8 + Math.sin(t * 2) * 0.08;
-        leftEye.position.y = 0.9 + Math.sin(t * 2) * 0.08;
-        leftPupil.position.y = 0.9 + Math.sin(t * 2) * 0.08;
-        rightEye.position.y = 0.9 + Math.sin(t * 2) * 0.08;
-        rightPupil.position.y = 0.9 + Math.sin(t * 2) * 0.08;
-        leftBlush.position.y = 0.78 + Math.sin(t * 2) * 0.08;
-        rightBlush.position.y = 0.78 + Math.sin(t * 2) * 0.08;
+        renderer.setSize(width, height);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.setClearColor(0x0f0f23, 1);
 
-        // Pet gentle rotation
-        petBody.rotation.y = Math.sin(t * 0.5) * 0.2;
+        // Pastel ambient light
+        const ambientLight = new THREE.AmbientLight(0xffc0cb, 0.6);
+        scene.add(ambientLight);
 
-        // Ball roll
-        ball.position.x = 0.8 + Math.sin(t * 0.8) * 0.3;
-        ball.rotation.z = t * 2;
+        // Warm point light
+        const pointLight = new THREE.PointLight(0xffd700, 1.2, 10);
+        pointLight.position.set(2, 3, 2);
+        scene.add(pointLight);
 
-        // Floating particles
-        for (const p of particles) {
-          const ud = p.userData as { baseY: number; speed: number; offset: number };
-          p.position.y = ud.baseY + Math.sin(t * ud.speed + ud.offset) * 0.3;
-          p.rotation.y = t * 0.5;
+        // Soft directional light
+        const dirLight = new THREE.DirectionalLight(0xe0e0ff, 0.5);
+        dirLight.position.set(-2, 4, 1);
+        scene.add(dirLight);
+
+        // --- Floor ---
+        const floorGeo = new THREE.PlaneGeometry(6, 6);
+        const floorMat = new THREE.MeshStandardMaterial({ color: 0xf5e6d3, roughness: 0.8 });
+        const floor = new THREE.Mesh(floorGeo, floorMat);
+        floor.rotation.x = -Math.PI / 2;
+        scene.add(floor);
+
+        // --- Back wall ---
+        const wallGeo = new THREE.BoxGeometry(6, 3, 0.1);
+        const wallMat = new THREE.MeshStandardMaterial({ color: 0xffe4e1, roughness: 0.9 });
+        const backWall = new THREE.Mesh(wallGeo, wallMat);
+        backWall.position.set(0, 1.5, -3);
+        scene.add(backWall);
+
+        const sideWallGeo = new THREE.BoxGeometry(0.1, 3, 6);
+        const leftWall = new THREE.Mesh(sideWallGeo, wallMat.clone());
+        leftWall.position.set(-3, 1.5, 0);
+        ((leftWall.material as unknown as Record<string, unknown>).color as { set: (c: number) => void }).set(0xffd1dc);
+        scene.add(leftWall);
+
+        const rightWall = new THREE.Mesh(sideWallGeo, wallMat.clone());
+        rightWall.position.set(3, 1.5, 0);
+        ((rightWall.material as unknown as Record<string, unknown>).color as { set: (c: number) => void }).set(0xffd1dc);
+        scene.add(rightWall);
+
+        // --- Cute Bed ---
+        const bedGeo = new THREE.BoxGeometry(1.4, 0.3, 0.9, 4, 4, 4);
+        const bedMat = new THREE.MeshStandardMaterial({ color: 0xb19cd9, roughness: 0.6 });
+        const bed = new THREE.Mesh(bedGeo, bedMat);
+        bed.position.set(-1.8, 0.15, -2);
+        scene.add(bed);
+
+        const pillowGeo = new THREE.SphereGeometry(0.25, 16, 16);
+        pillowGeo.scale(1.2, 0.6, 1);
+        const pillowMat = new THREE.MeshStandardMaterial({ color: 0xffc0cb });
+        const pillow = new THREE.Mesh(pillowGeo, pillowMat);
+        pillow.position.set(-1.8, 0.35, -2.2);
+        scene.add(pillow);
+
+        // --- Food Bowl ---
+        const bowlGeo = new THREE.CylinderGeometry(0.25, 0.18, 0.15, 16);
+        const bowlMat = new THREE.MeshStandardMaterial({ color: 0xff9a9e, roughness: 0.4, metalness: 0.2 });
+        const bowl = new THREE.Mesh(bowlGeo, bowlMat);
+        bowl.position.set(1.8, 0.075, -1.5);
+        scene.add(bowl);
+
+        const foodGeo = new THREE.SphereGeometry(0.18, 16, 16);
+        foodGeo.scale(1, 0.3, 1);
+        const foodMat = new THREE.MeshStandardMaterial({ color: 0xffa07a });
+        const food = new THREE.Mesh(foodGeo, foodMat);
+        food.position.set(1.8, 0.15, -1.5);
+        scene.add(food);
+
+        // --- Water Bowl ---
+        const waterBowl = new THREE.Mesh(bowlGeo.clone(), new THREE.MeshStandardMaterial({ color: 0x87ceeb, roughness: 0.3, metalness: 0.3 }));
+        waterBowl.position.set(2.2, 0.075, -1.0);
+        scene.add(waterBowl);
+
+        // --- Toy Ball ---
+        const ballGeo = new THREE.SphereGeometry(0.15, 16, 16);
+        const ballMat = new THREE.MeshStandardMaterial({ color: 0xff6b6b, roughness: 0.3 });
+        const ball = new THREE.Mesh(ballGeo, ballMat);
+        ball.position.set(0.8, 0.15, 0.5);
+        scene.add(ball);
+
+        // --- Plant ---
+        const potGeo = new THREE.CylinderGeometry(0.2, 0.15, 0.3, 8);
+        const potMat = new THREE.MeshStandardMaterial({ color: 0xd4a574 });
+        const pot = new THREE.Mesh(potGeo, potMat);
+        pot.position.set(-2.3, 0.15, 0.5);
+        scene.add(pot);
+
+        const leafGeo = new THREE.SphereGeometry(0.3, 8, 8);
+        const leafMat = new THREE.MeshStandardMaterial({ color: 0x98d8a0 });
+        const leaves = new THREE.Mesh(leafGeo, leafMat);
+        leaves.position.set(-2.3, 0.5, 0.5);
+        scene.add(leaves);
+
+        // --- Pet (cute bouncing sphere) ---
+        const petBodyGeo = new THREE.SphereGeometry(0.45, 32, 32);
+        const petColors: Record<string, number> = {
+          fire: 0xff6b6b, water: 0x6bb5ff, earth: 0xa0d468,
+          air: 0xc0e8ff, light: 0xfff176, dark: 0x9c6bff, neutral: 0xb19cd9,
+        };
+        const petColor = petColors[pet.elementalType] || 0xb19cd9;
+        const petBodyMat = new THREE.MeshStandardMaterial({ color: petColor, roughness: 0.3, metalness: 0.1 });
+        const petBody = new THREE.Mesh(petBodyGeo, petBodyMat);
+        petBody.position.set(0, 0.8, 0);
+        scene.add(petBody);
+
+        // --- Load VRM model if avatarId is set ---
+        if (pet.avatarId && !pet.equippedOrdinal) {
+          try {
+            const avatar = await getAvatarById(pet.avatarId);
+            if (cleanup) return;
+            if (avatar?.modelFileUrl) {
+              const vrmModel = await loadVRMModel(avatar.modelFileUrl, scene);
+              if (cleanup) return;
+              if ((vrmModel as any)?.scene) {
+                petBody.visible = false;
+                const vrmScene = (vrmModel as any).scene;
+                vrmScene.position.set(0, 0, 0);
+                vrmScene.scale.set(0.5, 0.5, 0.5);
+                scene.add(vrmScene);
+                console.log('[HomeView] VRM model loaded successfully');
+              }
+            }
+          } catch (error) {
+            console.warn('[HomeView] Failed to load VRM model, using sphere:', error);
+          }
         }
 
-        // Gentle camera sway
-        camera.position.x = Math.sin(t * 0.15) * 0.3;
+        // --- Load ordinal inscription as texture/model ---
+        if (pet.equippedOrdinal) {
+          try {
+            const content = await fetchInscriptionContent(pet.equippedOrdinal);
+            if (cleanup || !content) return;
+            const category = categorizeContentType(content.contentType);
+            if (category === 'image') {
+              await applyImageTextureToMesh(content, petBody, THREE);
+            } else if (category === '3d-model') {
+              petBody.visible = false;
+              await load3DModelFromContent(content, scene, THREE);
+            }
+          } catch (e) {
+            console.warn('[HomeView] Ordinal load failed:', e);
+          }
+        }
 
-        if (renderer) renderer.render(scene, camera);
+        // --- Eyes ---
+        const eyeGeo = new THREE.SphereGeometry(0.07, 16, 16);
+        const eyeMat = new THREE.MeshStandardMaterial({ color: 0xffffff });
+        const pupilGeo = new THREE.SphereGeometry(0.04, 16, 16);
+        const pupilMat = new THREE.MeshStandardMaterial({ color: 0x222222 });
+
+        const leftEye = new THREE.Mesh(eyeGeo, eyeMat);
+        leftEye.position.set(-0.13, 0.9, 0.38);
+        scene.add(leftEye);
+        const leftPupil = new THREE.Mesh(pupilGeo, pupilMat);
+        leftPupil.position.set(-0.13, 0.9, 0.43);
+        scene.add(leftPupil);
+
+        const rightEye = new THREE.Mesh(eyeGeo, eyeMat);
+        rightEye.position.set(0.13, 0.9, 0.38);
+        scene.add(rightEye);
+        const rightPupil = new THREE.Mesh(pupilGeo, pupilMat);
+        rightPupil.position.set(0.13, 0.9, 0.43);
+        scene.add(rightPupil);
+
+        // --- Blush cheeks ---
+        const blushGeo = new THREE.SphereGeometry(0.06, 16, 16);
+        blushGeo.scale(1.3, 0.7, 0.5);
+        const blushMat = new THREE.MeshStandardMaterial({ color: 0xff9a9e, transparent: true, opacity: 0.6 });
+        const leftBlush = new THREE.Mesh(blushGeo, blushMat);
+        leftBlush.position.set(-0.25, 0.78, 0.35);
+        scene.add(leftBlush);
+        const rightBlush = new THREE.Mesh(blushGeo.clone(), blushMat);
+        rightBlush.position.set(0.25, 0.78, 0.35);
+        scene.add(rightBlush);
+
+        // --- Floating hearts/stars ---
+        const particles: InstanceType<typeof THREE.Mesh>[] = [];
+        const particleShapes = ['heart', 'star'];
+        for (let i = 0; i < 8; i++) {
+          const shape = particleShapes[i % 2];
+          const geo = shape === 'heart'
+            ? new THREE.SphereGeometry(0.04, 8, 8)
+            : new THREE.OctahedronGeometry(0.04);
+          const mat = new THREE.MeshStandardMaterial({
+            color: shape === 'heart' ? 0xff6b9d : 0xffd700,
+            emissive: shape === 'heart' ? 0xff6b9d : 0xffd700,
+            emissiveIntensity: 0.5,
+            transparent: true,
+            opacity: 0.7,
+          });
+          const particle = new THREE.Mesh(geo, mat);
+          particle.position.set(
+            (Math.random() - 0.5) * 4,
+            1 + Math.random() * 2,
+            (Math.random() - 0.5) * 4
+          );
+          particle.userData = { baseY: particle.position.y, speed: 0.3 + Math.random() * 0.5, offset: Math.random() * Math.PI * 2 };
+          scene.add(particle);
+          particles.push(particle);
+        }
+
+        // --- Animation Loop ---
+        const clock = new THREE.Clock();
+
+        function animate() {
+          if (cleanup) return;
+          animationId = requestAnimationFrame(animate);
+          const t = clock.getElapsedTime();
+
+          petBody.position.y = 0.8 + Math.sin(t * 2) * 0.08;
+          leftEye.position.y = 0.9 + Math.sin(t * 2) * 0.08;
+          leftPupil.position.y = 0.9 + Math.sin(t * 2) * 0.08;
+          rightEye.position.y = 0.9 + Math.sin(t * 2) * 0.08;
+          rightPupil.position.y = 0.9 + Math.sin(t * 2) * 0.08;
+          leftBlush.position.y = 0.78 + Math.sin(t * 2) * 0.08;
+          rightBlush.position.y = 0.78 + Math.sin(t * 2) * 0.08;
+
+          petBody.rotation.y = Math.sin(t * 0.5) * 0.2;
+          ball.position.x = 0.8 + Math.sin(t * 0.8) * 0.3;
+          ball.rotation.z = t * 2;
+
+          for (const p of particles) {
+            const ud = p.userData as { baseY: number; speed: number; offset: number };
+            p.position.y = ud.baseY + Math.sin(t * ud.speed + ud.offset) * 0.3;
+            p.rotation.y = t * 0.5;
+          }
+
+          camera.position.x = Math.sin(t * 0.15) * 0.3;
+
+          if (renderer) renderer.render(scene, camera);
+        }
+
+        animate();
+      } catch (e) {
+        console.error('[HomeView] initScene failed:', e);
       }
+    };
 
-      animate();
-    })();
+    initScene();
 
     return () => {
       cleanup = true;
+      if (retryId) cancelAnimationFrame(retryId);
       if (animationId) cancelAnimationFrame(animationId);
-      
-      // Remove WebGL context event listeners
+
       if (canvas) {
         canvas.removeEventListener('webglcontextlost', handleContextLost);
         canvas.removeEventListener('webglcontextrestored', handleContextRestored);
       }
-      
-      // Dispose of WebGL renderer and release context
+
       if (renderer) {
         try {
           renderer.dispose();
@@ -465,14 +459,12 @@ export function HomeView() {
         }
         renderer = null;
       }
-      
-      // Remove canvas from DOM
-      if (canvas && canvas.parentNode) {
+
+      if (canvas?.parentNode) {
         canvas.parentNode.removeChild(canvas);
       }
       canvas = null;
-      
-      // Clear scene reference
+
       scene = null;
     };
   }, [pet.elementalType, pet.equippedOrdinal, pet.avatarId]);
