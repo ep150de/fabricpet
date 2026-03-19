@@ -165,9 +165,17 @@ export function HomeView() {
     (async () => {
       const THREE = await import('three');
 
-      // CRITICAL: Create a NEW canvas element instead of reusing the same one
-      // This prevents WebGL context invalidation when effect re-runs
+      // Get actual pixel dimensions BEFORE creating canvas
+      // Use getBoundingClientRect() for accurate CSS-computed size
+      const rect = container.getBoundingClientRect();
+      const pixelWidth = Math.round(rect.width) || 400;
+      const pixelHeight = Math.round(rect.height) || 280;
+
+      // CRITICAL: Create a NEW canvas element with explicit pixel dimensions
+      // CSS width/height alone causes clientWidth/clientHeight to be 0 on iOS/mobile
       canvas = document.createElement('canvas');
+      canvas.width = pixelWidth;
+      canvas.height = pixelHeight;
       canvas.style.width = '100%';
       canvas.style.height = '100%';
       canvas.style.display = 'block';
@@ -177,7 +185,7 @@ export function HomeView() {
       canvas.addEventListener('webglcontextrestored', handleContextRestored);
 
       scene = new THREE.Scene();
-      const camera = new THREE.PerspectiveCamera(50, canvas.clientWidth / canvas.clientHeight, 0.1, 100);
+      const camera = new THREE.PerspectiveCamera(50, pixelWidth / pixelHeight, 0.1, 100);
       camera.position.set(0, 2.5, 5);
       camera.lookAt(0, 0.5, 0);
 
@@ -189,7 +197,7 @@ export function HomeView() {
       }
       if (cleanup) return; // Check cleanup after renderer creation
       
-      renderer.setSize(canvas.clientWidth, canvas.clientHeight);
+      renderer.setSize(pixelWidth, pixelHeight);
       renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
       renderer.setClearColor(0x0f0f23, 1);
 
