@@ -143,7 +143,6 @@ export function HomeView() {
     if (!container) return;
 
     let animationId: number;
-    let retryId: number | undefined;
     let cleanup = false;
     let renderer: any = null;
     let scene: any = null;
@@ -166,17 +165,7 @@ export function HomeView() {
       try {
         const THREE = await import('three');
 
-        const rect = container.getBoundingClientRect();
-        const width = Math.round(rect.width) || 400;
-        const height = Math.round(rect.height) || 280;
-        if (width === 0 || height === 0) {
-          retryId = requestAnimationFrame(initScene);
-          return;
-        }
-
         canvas = document.createElement('canvas');
-        canvas.width = width;
-        canvas.height = height;
         canvas.style.width = '100%';
         canvas.style.height = '100%';
         canvas.style.display = 'block';
@@ -185,8 +174,11 @@ export function HomeView() {
         canvas.addEventListener('webglcontextlost', handleContextLost);
         canvas.addEventListener('webglcontextrestored', handleContextRestored);
 
+        const w = canvas.clientWidth;
+        const h = canvas.clientHeight;
+
         scene = new THREE.Scene();
-        const camera = new THREE.PerspectiveCamera(50, width / height, 0.1, 100);
+        const camera = new THREE.PerspectiveCamera(50, w / h, 0.1, 100);
         camera.position.set(0, 2.5, 5);
         camera.lookAt(0, 0.5, 0);
 
@@ -198,7 +190,7 @@ export function HomeView() {
         }
         if (cleanup) return;
 
-        renderer.setSize(width, height);
+        renderer.setSize(w, h);
         renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
         renderer.setClearColor(0x0f0f23, 1);
 
@@ -443,7 +435,6 @@ export function HomeView() {
 
     return () => {
       cleanup = true;
-      if (retryId) cancelAnimationFrame(retryId);
       if (animationId) cancelAnimationFrame(animationId);
 
       if (canvas) {
