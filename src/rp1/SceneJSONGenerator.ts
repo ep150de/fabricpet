@@ -22,9 +22,33 @@ export interface SceneNode {
   aBound: [number, number, number];
   aChildren: SceneNode[];
   wClass?: number;
+  twObjectIx?: string;
+  aAnnotation?: string;
 }
 
 export type SceneJSON = [SceneNode];
+
+// wClass values: 1=ground/terrain, 2=architecture, 3=props/furniture, 4=character/pet, 5=ordinal content, 6=display panel
+const WCLASS_GROUND = 1;
+const WCLASS_ARCH = 2;
+const WCLASS_PROP = 3;
+const WCLASS_PET = 4;
+const WCLASS_ORDINAL = 5;
+const WCLASS_DISPLAY = 6;
+
+function stableUUID(seed: string): string {
+  let hash = 0;
+  for (let i = 0; i < seed.length; i++) {
+    hash = ((hash << 5) - hash) + seed.charCodeAt(i);
+    hash |= 0;
+  }
+  const h = Math.abs(hash).toString(16).padStart(8, '0');
+  return `${h}-${h.slice(0, 4)}-4${h.slice(0, 3)}-${((Math.abs(hash) >>> 8) & 0x3fff | 0x8000).toString(16).slice(0, 4)}-${Math.abs(hash).toString(16).padStart(12, '0').slice(0, 12)}`;
+}
+
+function petUUID(pet: Pet, key: string): string {
+  return stableUUID(`${pet.id}:${pet.name}:${key}`);
+}
 
 // Content types that are 3D models
 const MODEL_TYPES = ['model/gltf-binary', 'model/gltf+json', 'application/octet-stream'];
@@ -97,6 +121,9 @@ export function generateSceneJSON(
     
     children.push({
       sName: `${pet.name}'s Home (${theme.name})`,
+      wClass: WCLASS_GROUND,
+      twObjectIx: petUUID(pet, `ground:${home.theme}`),
+      aAnnotation: `theme:${home.theme};color:${groundColor}`,
       pTransform: {
         aPosition: [0, 0, 0],
         aRotation: [0, 0, 0, 1],
@@ -106,6 +133,8 @@ export function generateSceneJSON(
       aChildren: [
         {
           sName: `Theme: ${theme.name}`,
+          wClass: WCLASS_GROUND,
+          twObjectIx: petUUID(pet, `theme:${home.theme}`),
           pTransform: {
             aPosition: [0, 0, 0],
             aRotation: [0, 0, 0, 1],
@@ -119,9 +148,11 @@ export function generateSceneJSON(
 
     // Add furniture items from home state
     if (home.furniture && home.furniture.length > 0) {
-      home.furniture.forEach((item, index) => {
+      home.furniture.forEach((item) => {
         children.push({
           sName: `${item.type}_${item.id}`,
+          wClass: WCLASS_PROP,
+          twObjectIx: petUUID(pet, `furniture:${item.id}`),
           pTransform: {
             aPosition: item.position,
             aRotation: [0, 0, 0, 1],
@@ -134,11 +165,12 @@ export function generateSceneJSON(
     }
   }
 
-  // 1. Add the pet as the central object
+  // 2. Add the pet as the central object
   if (pet.equippedOrdinal) {
-    // If pet has an equipped ordinal, use it directly
     children.push({
       sName: `${pet.name} (FabricPet)`,
+      wClass: WCLASS_PET,
+      twObjectIx: petUUID(pet, 'pet'),
       pResource: { sReference: getOrdinalContentUrl(pet.equippedOrdinal) },
       pTransform: {
         aPosition: petPosition,
@@ -149,8 +181,6 @@ export function generateSceneJSON(
       aChildren: [],
     });
   } else {
-    // No ordinal equipped - use default sphere representation
-    // Create a simple colored sphere using the pet's elemental type color
     const elementColors: Record<string, string> = {
       fire: '#ff6b6b',
       water: '#6bc5ff',
@@ -161,12 +191,11 @@ export function generateSceneJSON(
       neutral: '#ffffff',
     };
     const petColor = elementColors[pet.elementalType] || '#ffffff';
-    
-    // Use a simple sphere primitive - RP1 Scene Assembler can render basic shapes
-    // For now, we'll use a placeholder URL that represents a sphere
-    // In the future, this could be a hosted glTF sphere model
+
     children.push({
       sName: `${pet.name} (FabricPet - Default)`,
+      wClass: WCLASS_PET,
+      twObjectIx: petUUID(pet, 'pet'),
       pTransform: {
         aPosition: petPosition,
         aRotation: [0, 0, 0, 1],
@@ -182,7 +211,6 @@ export function generateSceneJSON(
   const radius = Math.max(3, models.length * 0.8); // Spread based on count
 
   models.forEach((inscription, i) => {
-    // Skip the equipped one (already placed as pet)
     if (inscription.id === pet.equippedOrdinal) return;
 
     const angle = (i / models.length) * Math.PI * 2;
@@ -191,6 +219,8 @@ export function generateSceneJSON(
 
     children.push({
       sName: inscription.id.slice(0, 12) + '...',
+      wClass: WCLASS_ORDINAL,
+      twObjectIx: petUUID(pet, `ordinal:${inscription.id}`),
       pResource: { sReference: getOrdinalContentUrl(inscription.id) },
       pTransform: {
         aPosition: [x, 0.5, z],
@@ -218,6 +248,8 @@ export function generateSceneJSON(
       // The RP1 browser may render these as textured planes
       children.push({
         sName: `img-${inscription.id.slice(0, 8)}`,
+        wClass: WCLASS_DISPLAY,
+        twObjectIx: petUUID(pet, `image:${inscription.id}`),
         pResource: { sReference: getOrdinalContentUrl(inscription.id) },
         pTransform: {
           aPosition: [x, 1.5, z],
@@ -234,6 +266,8 @@ export function generateSceneJSON(
   const scene: SceneJSON = [
     {
       sName: `${pet.name}'s FabricPet World`,
+      wClass: WCLASS_ARCH,
+      twObjectIx: petUUID(pet, 'root'),
       pTransform: {
         aPosition: [0, 0, 0],
         aRotation: [0, 0, 0, 1],
@@ -270,6 +304,8 @@ export function generateSingleObjectJSON(
   return [
     {
       sName: `Ordinal ${inscription.id.slice(0, 12)}`,
+      wClass: WCLASS_ORDINAL,
+      twObjectIx: stableUUID(`ordinal:${inscription.id}`),
       pTransform: {
         aPosition: [0, 0, 0],
         aRotation: [0, 0, 0, 1],
@@ -279,6 +315,8 @@ export function generateSingleObjectJSON(
       aChildren: [
         {
           sName: inscription.id.slice(0, 16),
+          wClass: WCLASS_ORDINAL,
+          twObjectIx: stableUUID(`ordinal-child:${inscription.id}`),
           pResource: { sReference: getOrdinalContentUrl(inscription.id) },
           pTransform: {
             aPosition: position,

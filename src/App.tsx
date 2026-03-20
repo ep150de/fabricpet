@@ -7,7 +7,7 @@ import { useStore } from './store/useStore';
 import { loadStoredIdentity, hasNostrExtension, connectWithExtension, generateNewIdentity } from './nostr/identity';
 import { loadPetState, savePetState } from './nostr/petStorage';
 import { decayNeeds } from './engine/NeedsSystem';
-import { saveLocalPet, loadLocalPet, saveLocalRoster, loadLocalRoster } from './store/localStorage';
+import { saveLocalPet, loadLocalPet, saveLocalRoster, loadLocalRoster, saveLocalHome, loadLocalHome } from './store/localStorage';
 import { Navigation } from './components/Navigation';
 import { PetView } from './components/PetView';
 import { BattleScreen } from './components/BattleScreen';
@@ -22,9 +22,10 @@ import { scheduleSceneSync } from './rp1/SceneSync';
 import { parseDeepLink, clearDeepLinkParams } from './rp1/DeepLinkHandler';
 import { startRP1Listener, stopRP1Listener } from './rp1/RP1Listener';
 import { Notification } from './components/Notification';
+import { HOME_THEMES } from './utils/constants';
 
 export default function App() {
-  const { identity, setIdentity, pet, setPet, home, currentView, setView, isLoading, setLoading, notification, setNotification, wallet, roster, setRoster } = useStore();
+  const { identity, setIdentity, pet, setPet, home, setHome, currentView, setView, isLoading, setLoading, notification, setNotification, wallet, roster, setRoster } = useStore();
 
   // Initialize identity and load pet state
   const initialize = useCallback(async () => {
@@ -103,6 +104,13 @@ export default function App() {
           maxSlots: 1,
         });
       }
+
+      // Load home state from localStorage
+      const localHome = loadLocalHome();
+      if (localHome) {
+        setHome(localHome.home);
+        console.log('[Init] Loaded home state from localStorage');
+      }
     } catch (error) {
       console.error('Initialization error:', error);
     } finally {
@@ -148,6 +156,33 @@ export default function App() {
       saveLocalRoster(roster);
     }
   }, [roster]);
+
+  // Save home state whenever it changes
+  useEffect(() => {
+    saveLocalHome(home);
+  }, [home]);
+
+  // Auto-unlock themes when pet levels up
+  useEffect(() => {
+    if (!pet) return;
+    let newlyUnlocked: string[] = [];
+    HOME_THEMES.forEach(theme => {
+      if (pet.level >= theme.unlockLevel && !home.unlockedThemes.includes(theme.id)) {
+        newlyUnlocked.push(theme.id);
+      }
+    });
+    if (newlyUnlocked.length > 0) {
+      setHome({
+        ...home,
+        unlockedThemes: [...home.unlockedThemes, ...newlyUnlocked],
+      });
+      const theme = HOME_THEMES.find(t => t.id === newlyUnlocked[0]);
+      if (theme) {
+        setNotification({ message: `${theme.emoji} ${theme.name} theme unlocked!`, emoji: '🎉' });
+        setTimeout(() => setNotification(null), 4000);
+      }
+    }
+  }, [pet?.level]);
 
   // Update max pet slots when wallet inscriptions change
   useEffect(() => {
