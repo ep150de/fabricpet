@@ -5,6 +5,7 @@
 import { DEFAULT_RELAYS, NOSTR_D_TAGS } from '../utils/constants';
 import type { Pet, GuestbookEntry } from '../types';
 import type { NostrIdentity } from './identity';
+import { getPool } from './relayManager';
 
 export interface VisitedPet {
   pubkey: string;
@@ -19,12 +20,9 @@ export interface VisitedPet {
  * Queries BOTH the correct d-tag AND legacy d-tag for backward compatibility.
  */
 export async function loadPetByPubkey(pubkey: string): Promise<VisitedPet | null> {
-  const { SimplePool } = await import('nostr-tools/pool');
-  const pool = new SimplePool();
+  const pool = getPool();
 
   try {
-    // Query all relays in parallel using SimplePool
-    // Try BOTH the correct d-tag and the legacy one for backward compat
     const event = await Promise.race([
       pool.get(DEFAULT_RELAYS, {
         kinds: [30078],
@@ -68,8 +66,6 @@ export async function loadPetByPubkey(pubkey: string): Promise<VisitedPet | null
   } catch (e) {
     console.error('[PetVisitor] Failed to load pet:', e);
     return null;
-  } finally {
-    pool.close(DEFAULT_RELAYS);
   }
 }
 
@@ -148,13 +144,20 @@ export async function signGuestbook(
     ],
     content: JSON.stringify({
       message,
-      visitorPetName: null, // Could be enriched with visitor's pet name
+      visitorPetName: null,
       timestamp: Date.now(),
     }),
   };
 
-  const privKeyBytes = identity.secretKey!;
-  const signedEvent = finalizeEvent(eventTemplate, privKeyBytes);
+  let signedEvent: any;
+  if (identity.isExtension && window.nostr) {
+    signedEvent = await window.nostr.signEvent(eventTemplate);
+  } else if (identity.secretKey) {
+    const { finalizeEvent } = await import('nostr-tools/pure');
+    signedEvent = finalizeEvent(eventTemplate, identity.secretKey);
+  } else {
+    throw new Error('No signing method available');
+  }
 
   let published = false;
   for (const relayUrl of DEFAULT_RELAYS) {

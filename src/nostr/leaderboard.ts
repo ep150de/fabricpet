@@ -53,20 +53,18 @@ function calculateScore(entry: LeaderboardEntry): number {
  */
 export async function fetchLeaderboard(timeoutMs: number = 12000): Promise<LeaderboardEntry[]> {
   const pool = getPool();
-  // Use indexing-capable relays first (relay.nostr.band indexes all events)
-  const leaderboardRelays = [
-    'wss://relay.nostr.band',
-    ...getRelays().filter(r => r !== 'wss://relay.nostr.band'),
-  ];
+  const leaderboardRelays = getRelays();
   const entries = new Map<string, LeaderboardEntry>();
 
   return new Promise<LeaderboardEntry[]>((resolve) => {
     let resolved = false;
-    let eoseCount = 0;
+    let firstEventReceived = false;
+    let postEventTimeout: ReturnType<typeof setTimeout> | null = null;
 
     const done = () => {
       if (resolved) return;
       resolved = true;
+      if (postEventTimeout) clearTimeout(postEventTimeout);
 
       // Calculate scores and sort
       const leaderboard = Array.from(entries.values()).map((entry) => {
@@ -85,7 +83,7 @@ export async function fetchLeaderboard(timeoutMs: number = 12000): Promise<Leade
         return b.petXP - a.petXP;
       });
 
-      console.log(`[Leaderboard] Found ${leaderboard.length} players from ${eoseCount} relays`);
+      console.log(`[Leaderboard] Found ${leaderboard.length} players`);
       resolve(leaderboard);
     };
 
@@ -123,16 +121,22 @@ export async function fetchLeaderboard(timeoutMs: number = 12000): Promise<Leade
                 createdAt: pet.createdAt || eventTime,
               });
             }
+
+            // On first event, resolve after 2s to allow more events to arrive
+            if (!firstEventReceived) {
+              firstEventReceived = true;
+              postEventTimeout = setTimeout(() => {
+                try { sub.close(); } catch {}
+                done();
+              }, 2000);
+            }
           } catch { /* skip invalid */ }
         },
         oneose() {
-          eoseCount++;
-          console.log(`[Leaderboard] EOSE from relay ${eoseCount}/${leaderboardRelays.length}, ${entries.size} entries so far`);
-          // Only resolve after ALL relays have responded with EOSE
-          if (eoseCount >= leaderboardRelays.length) {
-            try { sub.close(); } catch {}
-            done();
-          }
+          console.log(`[Leaderboard] EOSE, ${entries.size} entries found`);
+          // Resolve on first EOSE (events from fast relays already received)
+          try { sub.close(); } catch {}
+          done();
         },
       });
 

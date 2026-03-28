@@ -264,7 +264,7 @@ function LeaderboardTab() {
           <h3 className="text-sm font-semibold text-gray-300 mb-2">📡 Publish Your Pet</h3>
           
           {/* Check if identity has signing capability */}
-          {!identity.secretKey && (
+          {!(identity.secretKey || identity.isExtension) && (
             <div className="mb-3 p-2 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
               <p className="text-xs text-yellow-400">
                 ⚠️ Your identity doesn't have signing capability. To publish to Nostr relays, you need:
@@ -275,22 +275,22 @@ function LeaderboardTab() {
               </ul>
             </div>
           )}
-          
+
           <p className="text-xs text-gray-500 mb-3">
             Save your pet to Nostr relays so others can see you on the leaderboard.
           </p>
           <button
             onClick={handleForceSave}
-            disabled={saving || !identity.secretKey}
+            disabled={saving || !(identity.secretKey || identity.isExtension)}
             className={`w-full font-semibold py-3 rounded-xl transition-all text-sm ${
               saving
                 ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30'
-                : identity.secretKey
+                : (identity.secretKey || identity.isExtension)
                   ? 'bg-gradient-to-r from-indigo-500 to-purple-500 text-white hover:from-indigo-600 hover:to-purple-600'
                   : 'bg-gray-700 text-gray-400 cursor-not-allowed'
             }`}
           >
-            {saving ? '📡 Saving...' : identity.secretKey ? '💾 Force Save & Refresh Leaderboard' : '🔒 Signing Required'}
+            {saving ? '📡 Saving...' : (identity.secretKey || identity.isExtension) ? '💾 Force Save & Refresh Leaderboard' : '🔒 Signing Required'}
           </button>
           {saveStatus && (
             <p className="text-xs text-center mt-2 text-gray-400">{saveStatus}</p>
