@@ -16,7 +16,7 @@ import {
 import { RP1_CONFIG } from '../utils/constants';
 
 export function NearbyPets() {
-  const { pet, identity } = useStore();
+  const { pet, identity, setDeepLinkParams, setView } = useStore();
   const [nearbyPets, setNearbyPets] = useState<NearbyPet[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -221,8 +221,8 @@ export function NearbyPets() {
                 <div className="text-right">
                   <button
                     onClick={() => {
-                      // View pet details or send challenge
-                      console.log('View pet:', pet);
+                      setDeepLinkParams({ pubkey: pet.pubkey });
+                      setView('social');
                     }}
                     className="text-xs text-indigo-400 hover:text-indigo-300"
                   >

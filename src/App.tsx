@@ -46,7 +46,7 @@ export default function App() {
 
       // If still no identity, generate a new one
       if (!id) {
-        id = generateNewIdentity();
+        id = await generateNewIdentity();
       }
 
       setIdentity(id);

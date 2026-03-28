@@ -128,8 +128,8 @@ export async function fetchLeaderboard(timeoutMs: number = 12000): Promise<Leade
         oneose() {
           eoseCount++;
           console.log(`[Leaderboard] EOSE from relay ${eoseCount}/${leaderboardRelays.length}, ${entries.size} entries so far`);
-          // Resolve after first relay responds with data, or after all respond
-          if (entries.size > 0 || eoseCount >= leaderboardRelays.length) {
+          // Only resolve after ALL relays have responded with EOSE
+          if (eoseCount >= leaderboardRelays.length) {
             try { sub.close(); } catch {}
             done();
           }

@@ -83,10 +83,13 @@ export async function signEventWithNsec(event: Record<string, unknown>, nsec: st
 /**
  * Verify an event's signature.
  */
-export function verifyEvent(event: Record<string, unknown>): Promise<boolean> {
-  // nostr-tools doesn't export verifyEvent directly, but we can use the finalizeEvent result
-  // For now, we'll assume events are valid if they have a signature
-  return Promise.resolve(!!(event as { sig?: string }).sig);
+export async function verifyEvent(event: Record<string, unknown>): Promise<boolean> {
+  try {
+    const { verifyEvent: nostrVerify } = await import('nostr-tools/pure');
+    return nostrVerify(event as Parameters<typeof nostrVerify>[0]);
+  } catch {
+    return false;
+  }
 }
 
 /**

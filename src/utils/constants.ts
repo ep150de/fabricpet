@@ -21,7 +21,7 @@ export const NOSTR_D_TAGS = {
   BATTLE_LOG: 'com.fabricpet.battle.log',
   BATTLE_CHALLENGE: 'com.fabricpet.battle.challenge',
   LEADERBOARD: 'com.fabricpet.leaderboard',
-  GUESTBOOK: 'com.fabricpet.guestbook',
+  GUESTBOOK: 'fabricpet-guestbook',
 } as const;
 
 // OSA (Open Source Avatars) API
