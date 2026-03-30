@@ -17,45 +17,38 @@ export interface VisitedPet {
 /**
  * Load another player's pet state from Nostr by pubkey.
  * Uses SimplePool for reliable multi-relay querying.
- * Queries BOTH the correct d-tag AND legacy d-tag for backward compatibility.
+ * Queries BOTH the correct d-tag AND legacy d-tags for backward compatibility.
  */
 export async function loadPetByPubkey(pubkey: string): Promise<VisitedPet | null> {
   const pool = getPool();
+
+  const petStateTags = [NOSTR_D_TAGS.PET_STATE, 'com.fabricpet.pet.state', 'fabricpet-state'];
 
   try {
     const event = await Promise.race([
       pool.get(DEFAULT_RELAYS, {
         kinds: [30078],
         authors: [pubkey],
-        '#d': [NOSTR_D_TAGS.PET_STATE],
+        '#d': petStateTags,
       }),
       new Promise<null>((resolve) => setTimeout(() => resolve(null), 10000)),
     ]);
 
-    // If not found with correct tag, try legacy tag
-    let foundEvent = event;
-    if (!foundEvent) {
-      console.log('[PetVisitor] Trying legacy d-tag...');
-      foundEvent = await Promise.race([
-        pool.get(DEFAULT_RELAYS, {
-          kinds: [30078],
-          authors: [pubkey],
-          '#d': ['fabricpet-state'],
-        }),
-        new Promise<null>((resolve) => setTimeout(() => resolve(null), 8000)),
-      ]);
+    if (!event) {
+      console.log(`[PetVisitor] No pet found for ${pubkey.slice(0, 12)}...`);
+      return null;
     }
 
-    if (foundEvent) {
+    if (event) {
       try {
-        const data = JSON.parse(foundEvent.content);
+        const data = JSON.parse(event.content);
         if (data.pet) {
           const guestbook = await loadGuestbook(pubkey);
           return {
-            pubkey: foundEvent.pubkey,
+            pubkey: event.pubkey,
             pet: data.pet,
             guestbook,
-            lastUpdated: foundEvent.created_at * 1000,
+            lastUpdated: event.created_at * 1000,
           };
         }
       } catch { /* skip malformed */ }

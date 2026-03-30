@@ -3,7 +3,7 @@
 // ============================================
 // Handles identity derivation, event publishing, and fetching from relays.
 // Uses Bitcoin wallet as the root of identity (via BIP-85-like derivation or hash).
-// Implements NIP-01 (metadata), NIP-04 (encrypted DMs), and custom kinds for pet state, battles, leaderboard, guestbook.
+// Implements NIP-01 (metadata), NIP-17 (encrypted DMs with NIP-44), and custom kinds for pet state, battles, leaderboard, guestbook.
 
 import type { Pet, PetNeeds, PetMood, PetStage, ElementalType, BattleState, BattleStats, Move } from '../types';
 import { DEFAULT_RELAYS, NOSTR_KIND_APP_DATA, NOSTR_D_TAGS } from '../utils/constants';
@@ -162,7 +162,8 @@ export async function fetchGuestbookEntries(targetPetPubkey: string): Promise<Ar
 }
 
 /**
- * Send an encrypted direct message (NIP-04) to another user.
+ * Send an encrypted direct message (NIP-17) to another user.
+ * Uses NIP-44 encryption (kind 14).
  * @param recipientPubkey The npub of the recipient
  * @param cleartextContent The message to send
  * @param walletXpub The wallet xpub of the sender (for identity)
@@ -171,7 +172,7 @@ export async function sendDirectMessage(recipientPubkey: string, cleartextConten
   const identity = getIdentity(walletXpub, 'dm');
   const encrypted = await encryptDirectMessage(cleartextContent, identity.nsec, recipientPubkey);
   const event = {
-    kind: 4, // NIP-04
+    kind: 14, // NIP-17 (uses NIP-44 encryption)
     created_at: Math.floor(Date.now() / 1000),
     tags: [['p', recipientPubkey]],
     content: encrypted

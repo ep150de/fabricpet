@@ -4,7 +4,7 @@
 // Supports: sphere pet, image-textured pet, and 3D ordinal GLB pet
 // Mobile-friendly: uses Web Share API with fallback to new tab
 
-import type { Pet } from '../types';
+import type { Pet, PetGlTFMetadata, GLTFExtensionData } from '../types';
 import { fetchInscriptionContent, categorizeContentType, createBlobUrl } from '../avatar/OrdinalRenderer';
 
 const PET_COLORS: Record<string, number> = {
@@ -12,13 +12,152 @@ const PET_COLORS: Record<string, number> = {
   air: 0xc0e8ff, light: 0xfff176, dark: 0x9c6bff, neutral: 0xb19cd9,
 };
 
+const GLTF_EXTRAS_KEY = 'fabricpet';
+const GLTF_EXTENSION_NAME = 'EXT_fabric_pet';
+const GLTF_METADATA_VERSION = '1.0';
+
+// GLB constants
+const GLB_MAGIC = 0x46546C67;
+const GLB_CHUNK_JSON = 0x4E4F534A;
+const GLB_CHUNK_BIN = 0x004E4942;
+
+function buildPetMetadata(pet: Pet, ownerNpub?: string): PetGlTFMetadata {
+  return {
+    version: GLTF_METADATA_VERSION,
+    petId: pet.id,
+    name: pet.name,
+    level: pet.level,
+    stage: pet.stage,
+    elementalType: pet.elementalType,
+    battleStats: { ...pet.battleStats },
+    moves: [...pet.moves],
+    ownerNpub: ownerNpub || 'npub1unknown',
+    rarity: (pet as any).lineage?.rarity,
+    generation: (pet as any).lineage?.generation,
+  };
+}
+
+function buildGLTFExtension(pet: Pet): GLTFExtensionData {
+  return {
+    petId: pet.id,
+    name: pet.name,
+    level: pet.level,
+    elementalType: pet.elementalType,
+    battleStats: { ...pet.battleStats },
+  };
+}
+
+/**
+ * Embed FabricPet metadata into a GLB ArrayBuffer.
+ * GLB format:
+ * - 12-byte header: magic (4) + version (4) + length (4)
+ * - Chunk 0: JSON data (type 0x4E4F534A) + length (4) + data
+ * - Chunk 1: Binary buffer (type 0x004E4942) + length (4) + data
+ */
+function embedMetadataInGLB(
+  glb: Uint8Array,
+  metadata: PetGlTFMetadata,
+  extensionData: GLTFExtensionData
+): Uint8Array {
+  // Parse existing GLB to extract JSON chunk
+  const dataView = new DataView(glb.buffer, glb.byteOffset, glb.byteLength);
+  
+  // Read header
+  const magic = dataView.getUint32(0, true);
+  if (magic !== GLB_MAGIC) {
+    console.warn('[GLBExporter] Invalid GLB magic number');
+    return glb;
+  }
+  
+  const version = dataView.getUint32(4, true);
+  const glbLength = dataView.getUint32(8, true);
+  
+  // Read chunk 0 (JSON)
+  const chunk0Length = dataView.getUint32(12, true);
+  const chunk0Type = dataView.getUint32(16, true);
+  
+  if (chunk0Type !== GLB_CHUNK_JSON) {
+    console.warn('[GLBExporter] First chunk is not JSON');
+    return glb;
+  }
+  
+  const jsonData = new Uint8Array(glb.buffer, glb.byteOffset + 20, chunk0Length);
+  const decoder = new TextDecoder();
+  const jsonString = decoder.decode(jsonData);
+  
+  try {
+    const gltf = JSON.parse(jsonString);
+    
+    // Add asset extras with FabricPet metadata
+    gltf.asset = gltf.asset || {};
+    gltf.asset.extras = gltf.asset.extras || {};
+    gltf.asset.extras[GLTF_EXTRAS_KEY] = metadata;
+    
+    // Add the formal extension
+    gltf.extensions = gltf.extensions || {};
+    gltf.extensions[GLTF_EXTENSION_NAME] = extensionData;
+    gltf.extensionsUsed = gltf.extensionsUsed || [];
+    if (!gltf.extensionsUsed.includes(GLTF_EXTENSION_NAME)) {
+      gltf.extensionsUsed.push(GLTF_EXTENSION_NAME);
+    }
+    
+    // Re-encode to GLB
+    const modifiedJsonString = JSON.stringify(gltf);
+    const modifiedJsonBytes = new TextEncoder().encode(modifiedJsonString);
+    
+    // Pad JSON to 4-byte alignment
+    const paddedJsonLength = Math.ceil(modifiedJsonBytes.length / 4) * 4;
+    const padding = paddedJsonLength - modifiedJsonBytes.length;
+    
+    // Calculate new total length
+    const binChunkStart = 20 + paddedJsonLength;
+    const binChunkLength = glbLength - binChunkStart;
+    
+    // Total GLB size
+    const newGlbLength = 12 + 8 + paddedJsonLength + (binChunkStart < glbLength ? 8 + binChunkLength : 0);
+    
+    // Create new GLB
+    const newGlb = new Uint8Array(newGlbLength);
+    const newDataView = new DataView(newGlb.buffer);
+    
+    // Header
+    newDataView.setUint32(0, GLB_MAGIC, true);
+    newDataView.setUint32(4, version, true);
+    newDataView.setUint32(8, newGlbLength, true);
+    
+    // Chunk 0 (JSON)
+    newDataView.setUint32(12, paddedJsonLength, true);
+    newDataView.setUint32(16, GLB_CHUNK_JSON, true);
+    newGlb.set(modifiedJsonBytes, 20);
+    
+    // Copy remaining chunks (binary buffer)
+    if (binChunkStart < glbLength) {
+      const binChunkHeaderOffset = binChunkStart;
+      const binChunkDataOffset = binChunkStart + 8;
+      
+      newDataView.setUint32(binChunkStart, binChunkLength, true);
+      newDataView.setUint32(binChunkStart + 4, GLB_CHUNK_BIN, true);
+      newGlb.set(glb.subarray(binChunkDataOffset, binChunkDataOffset + binChunkLength), binChunkDataOffset);
+    }
+    
+    return newGlb;
+  } catch (e) {
+    console.error('[GLBExporter] Failed to embed metadata:', e);
+    return glb;
+  }
+}
+
 /**
  * Generate a GLB blob of the pet model.
  * If the equipped ordinal is a 3D GLB file, exports that directly.
  * If it's an image, wraps it as a texture on the sphere.
  * Otherwise, exports the colored sphere pet.
+ * 
+ * Includes FabricPet metadata in glTF extras and EXT_fabric_pet extension.
  */
-export async function exportPetAsGLB(pet: Pet): Promise<Blob> {
+export async function exportPetAsGLB(pet: Pet, ownerNpub?: string): Promise<Blob> {
+  const metadata = buildPetMetadata(pet, ownerNpub);
+
   // Check if equipped ordinal is a 3D model — if so, return it directly
   if (pet.equippedOrdinal) {
     try {
@@ -26,7 +165,6 @@ export async function exportPetAsGLB(pet: Pet): Promise<Blob> {
       if (content) {
         const category = categorizeContentType(content.contentType);
         if (category === '3d-model') {
-          // Return the raw GLB data directly from the ordinal
           console.log('[GLBExporter] Exporting 3D ordinal inscription as GLB');
           return new Blob([content.blob], { type: 'model/gltf-binary' });
         }
@@ -93,17 +231,27 @@ export async function exportPetAsGLB(pet: Pet): Promise<Blob> {
     scene.add(blush);
   }
 
+  // Add FabricPet metadata to scene extras
+  // The GLTFExporter will include scene.userData.extras if available
+  scene.userData.extras = {
+    [GLTF_EXTRAS_KEY]: metadata,
+  };
+
   // Export
   const exporter = new GLTFExporter();
   const glb = await exporter.parseAsync(scene, { binary: true }) as ArrayBuffer;
-  return new Blob([glb], { type: 'model/gltf-binary' });
+  
+  // Wrap with proper GLB structure including extension
+  const wrappedGlb = embedMetadataInGLB(new Uint8Array(glb), metadata, buildGLTFExtension(pet));
+  
+  return new Blob([wrappedGlb.buffer as ArrayBuffer], { type: 'model/gltf-binary' });
 }
 
 /**
  * Download the pet GLB file — mobile-friendly with multiple fallbacks.
  */
-export async function downloadPetGLB(pet: Pet): Promise<void> {
-  const blob = await exportPetAsGLB(pet);
+export async function downloadPetGLB(pet: Pet, ownerNpub?: string): Promise<void> {
+  const blob = await exportPetAsGLB(pet, ownerNpub);
   const filename = `${pet.name.toLowerCase().replace(/\s+/g, '-')}-pet.glb`;
 
   // Method 1: Web Share API (best for mobile)

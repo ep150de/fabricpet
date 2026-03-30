@@ -52,7 +52,7 @@ export async function generateQRDataUrlAsync(data: string): Promise<string> {
  * Sync wrapper that returns a placeholder and generates async.
  * For backward compatibility with existing sync callers.
  */
-let qrCache = new Map<string, string>();
+const qrCache = new Map<string, string>();
 
 function generateQRAsync(data: string): string {
   // Return cached version if available

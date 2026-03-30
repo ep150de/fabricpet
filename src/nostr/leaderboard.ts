@@ -88,10 +88,12 @@ export async function fetchLeaderboard(timeoutMs: number = 12000): Promise<Leade
     };
 
     try {
+      const petStateTags = [NOSTR_D_TAGS.PET_STATE, 'com.fabricpet.pet.state', 'fabricpet-state'];
+
       const sub = pool.subscribeMany(leaderboardRelays, [
         {
           kinds: [NOSTR_KIND_APP_DATA],
-          '#d': [NOSTR_D_TAGS.PET_STATE],
+          '#d': petStateTags,
           limit: 100,
         } as Record<string, unknown>,
       ] as unknown as Parameters<typeof pool.subscribeMany>[1], {

@@ -2,19 +2,21 @@
 // Bottom Navigation Bar — Terminal Style
 // ============================================
 
+import { useTranslation } from 'react-i18next';
 import { useStore } from '../store/useStore';
 import type { AppView } from '../types';
 
-const navItems: { view: AppView; emoji: string; label: string; cmd: string }[] = [
-  { view: 'home', emoji: '🏠', label: 'Home', cmd: '_home' },
-  { view: 'pet', emoji: '🐾', label: 'Pet', cmd: '_pet' },
-  { view: 'chat', emoji: '💬', label: 'Chat', cmd: '_chat' },
-  { view: 'battle', emoji: '⚔️', label: 'Battle', cmd: '_battle' },
-  { view: 'social', emoji: '👥', label: 'Social', cmd: '_social' },
-  { view: 'wallet', emoji: '💰', label: 'Wallet', cmd: '_wallet' },
+const navItems: { view: AppView; emoji: string; key: string }[] = [
+  { view: 'home', emoji: '🏠', key: 'nav.home' },
+  { view: 'pet', emoji: '🐾', key: 'nav.pet' },
+  { view: 'chat', emoji: '💬', key: 'nav.chat' },
+  { view: 'battle', emoji: '⚔️', key: 'nav.battle' },
+  { view: 'social', emoji: '👥', key: 'nav.social' },
+  { view: 'wallet', emoji: '💰', key: 'nav.wallet' },
 ];
 
 export function Navigation() {
+  const { t } = useTranslation();
   const { currentView, setView } = useStore();
 
   return (
@@ -28,6 +30,7 @@ export function Navigation() {
       <div className="flex justify-around items-center max-w-lg mx-auto">
         {navItems.map((item) => {
           const isActive = currentView === item.view;
+          const label = t(item.key);
           return (
             <button
               key={item.view}
@@ -43,7 +46,7 @@ export function Navigation() {
             >
               <span className="text-lg">{item.emoji}</span>
               <span className="text-xs mt-0.5 font-medium font-mono">
-                {isActive ? `> ${item.label}` : item.label}
+                {isActive ? `> ${label}` : label}
               </span>
               {isActive && (
                 <span className="animate-terminal-blink text-[#00ffff]">_</span>

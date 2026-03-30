@@ -3,7 +3,7 @@
 // ============================================
 
 import { create } from 'zustand';
-import type { Pet, PetRoster, WalletState, OrdinalInscription, HomeState, BattleState, AppView } from '../types';
+import type { Pet, PetRoster, WalletState, OrdinalInscription, HomeState, BattleState, AppView, DirectMessage, Conversation } from '../types';
 import type { NostrIdentity } from '../nostr/identity';
 import type { BehaviorAction } from '../engine/BehaviorTree';
 
@@ -54,6 +54,15 @@ interface AppState {
   setLoading: (loading: boolean) => void;
   isSaving: boolean;
   setSaving: (saving: boolean) => void;
+
+  // --- Direct Messages (NIP-17) ---
+  conversations: Conversation[];
+  setConversations: (conversations: Conversation[]) => void;
+  addConversation: (conversation: Conversation) => void;
+  messages: Record<string, DirectMessage[]>;
+  addMessage: (pubkey: string, message: DirectMessage) => void;
+  markMessagesRead: (pubkey: string) => void;
+  getUnreadCount: () => number;
 }
 
 export const useStore = create<AppState>((set) => ({
@@ -183,4 +192,48 @@ export const useStore = create<AppState>((set) => ({
   setLoading: (loading) => set({ isLoading: loading }),
   isSaving: false,
   setSaving: (saving) => set({ isSaving: saving }),
+
+  // --- Direct Messages (NIP-17) ---
+  conversations: [],
+  setConversations: (conversations) => set({ conversations }),
+  addConversation: (conversation) =>
+    set((state) => {
+      const exists = state.conversations.find((c) => c.pubkey === conversation.pubkey);
+      if (exists) {
+        return {
+          conversations: state.conversations.map((c) =>
+            c.pubkey === conversation.pubkey ? conversation : c
+          ),
+        };
+      }
+      return { conversations: [...state.conversations, conversation] };
+    }),
+  messages: {},
+  addMessage: (pubkey, message) =>
+    set((state) => {
+      const existing = state.messages[pubkey] || [];
+      return {
+        messages: { ...state.messages, [pubkey]: [...existing, message] },
+      };
+    }),
+  markMessagesRead: (pubkey) =>
+    set((state) => {
+      const existing = state.messages[pubkey] || [];
+      return {
+        messages: {
+          ...state.messages,
+          [pubkey]: existing.map((m) => (m.recipient === pubkey ? { ...m, read: true } : m)),
+        },
+        conversations: state.conversations.map((c) =>
+          c.pubkey === pubkey ? { ...c, unreadCount: 0 } : c
+        ),
+      };
+    }),
+  getUnreadCount: () => {
+    let count = 0;
+    useStore.getState().conversations.forEach((c) => {
+      count += c.unreadCount;
+    });
+    return count;
+  },
 }));

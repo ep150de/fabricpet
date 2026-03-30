@@ -1,10 +1,10 @@
 // ============================================
 // Nostr Utilities — Cryptographic helper functions
 // ============================================
-// Uses nostr-tools for signing, key derivation, and NIP-04 encryption
+// Uses nostr-tools for signing, key derivation, and NIP-44 encryption (NIP-17)
 
 import { generateSecretKey, getPublicKey, finalizeEvent } from 'nostr-tools/pure';
-import { nip04 } from 'nostr-tools';
+import { nip44 } from 'nostr-tools';
 import { npubEncode, nsecEncode, decode } from 'nostr-tools/nip19';
 import { simpleHash } from '../utils/hash';
 
@@ -93,13 +93,15 @@ export async function verifyEvent(event: Record<string, unknown>): Promise<boole
 }
 
 /**
- * Encrypt a direct message using NIP-04.
+ * Encrypt a direct message using NIP-44 (NIP-17).
+ * Uses chacha20-poly1305 with conversation key derived from ECDH.
  */
 export async function encryptDirectMessage(content: string, nsec: string, recipientPubkey: string): Promise<string> {
   try {
     const decoded = decode(nsec);
     if (decoded.type === 'nsec') {
-      return await nip04.encrypt(decoded.data, recipientPubkey, content);
+      const conversationKey = nip44.v2.utils.getConversationKey(decoded.data, recipientPubkey);
+      return nip44.v2.encrypt(content, conversationKey);
     }
   } catch (e) {
     console.error('[nostrUtils] Failed to encrypt DM:', e);
@@ -108,13 +110,14 @@ export async function encryptDirectMessage(content: string, nsec: string, recipi
 }
 
 /**
- * Decrypt a direct message using NIP-04.
+ * Decrypt a direct message using NIP-44 (NIP-17).
  */
 export async function decryptDirectMessage(encrypted: string, nsec: string, senderPubkey: string): Promise<string> {
   try {
     const decoded = decode(nsec);
     if (decoded.type === 'nsec') {
-      return await nip04.decrypt(decoded.data, senderPubkey, encrypted);
+      const conversationKey = nip44.v2.utils.getConversationKey(decoded.data, senderPubkey);
+      return nip44.v2.decrypt(encrypted, conversationKey);
     }
   } catch (e) {
     console.error('[nostrUtils] Failed to decrypt DM:', e);

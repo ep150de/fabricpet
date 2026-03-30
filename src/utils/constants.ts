@@ -15,14 +15,34 @@ export const DEFAULT_RELAYS = [
 // NIP-78 event kind for app-specific data
 export const NOSTR_KIND_APP_DATA = 30078;
 
-// Nostr d-tag prefixes for our app
+// Nostr d-tag prefixes for our app (standardized to fabricpet:v1:* format)
 export const NOSTR_D_TAGS = {
-  PET_STATE: 'com.fabricpet.pet.state',
-  HOME_STATE: 'com.fabricpet.home.state',
-  BATTLE_LOG: 'com.fabricpet.battle.log',
-  BATTLE_CHALLENGE: 'com.fabricpet.battle.challenge',
-  LEADERBOARD: 'com.fabricpet.leaderboard',
-  GUESTBOOK: 'fabricpet-guestbook',
+  // Core pet data
+  PET_STATE: 'fabricpet:v1:pet',
+  HOME_STATE: 'fabricpet:v1:home',
+  
+  // Battle system
+  BATTLE_LOG: 'fabricpet:v1:battle-log',
+  BATTLE_CHALLENGE: 'fabricpet:v1:battle-challenge',
+  
+  // Social features
+  LEADERBOARD: 'fabricpet:v1:leaderboard',
+  GUESTBOOK: 'fabricpet:v1:guestbook',
+  
+  // Breeding & lineage
+  LINEAGE: 'fabricpet:v1:lineage',
+  BREEDING_OFFER: 'fabricpet:v1:breeding-offer',
+  BREEDING_REQUEST: 'fabricpet:v1:breeding-request',
+  
+  // Legacy d-tags for backward compatibility (read-only)
+  LEGACY_PREFIXES: [
+    'com.fabricpet.pet.state',
+    'com.fabricpet.home.state',
+    'com.fabricpet.battle.log',
+    'com.fabricpet.battle.challenge',
+    'com.fabricpet.leaderboard',
+    'fabricpet-guestbook',
+  ],
 } as const;
 
 // OSA (Open Source Avatars) API
@@ -113,3 +133,79 @@ export const FURNITURE_CATALOG = [
   { id: 'plant_01', type: 'decor', name: 'Plant', emoji: '🪴' },
   { id: 'lamp_01', type: 'decor', name: 'Lamp', emoji: '💡' },
 ];
+
+// --- Breeding System Constants ---
+
+export type Rarity = 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary';
+
+export const RARITY_STATS: Record<Rarity, { varianceMultiplier: number; mutationChance: number }> = {
+  common: { varianceMultiplier: 0.05, mutationChance: 0.02 },
+  uncommon: { varianceMultiplier: 0.08, mutationChance: 0.05 },
+  rare: { varianceMultiplier: 0.12, mutationChance: 0.08 },
+  epic: { varianceMultiplier: 0.15, mutationChance: 0.12 },
+  legendary: { varianceMultiplier: 0.20, mutationChance: 0.18 },
+};
+
+export const ELEMENTAL_COMBINATIONS: Record<string, string> = {
+  'fire+fire': 'fire',
+  'fire+water': 'steam',
+  'fire+earth': 'lava',
+  'fire+air': 'wildfire',
+  'fire+light': 'solar',
+  'fire+dark': 'inferno',
+  'water+water': 'water',
+  'water+earth': 'mud',
+  'water+air': 'mist',
+  'water+light': 'rainbow',
+  'water+dark': 'void',
+  'earth+earth': 'earth',
+  'earth+air': 'dust',
+  'earth+light': 'crystal',
+  'earth+dark': 'poison',
+  'air+air': 'air',
+  'air+light': 'storm',
+  'air+dark': 'shadow',
+  'light+light': 'light',
+  'light+dark': 'neutral',
+  'dark+dark': 'dark',
+  'neutral+fire': 'fire',
+  'neutral+water': 'water',
+  'neutral+earth': 'earth',
+  'neutral+air': 'air',
+  'neutral+light': 'light',
+  'neutral+dark': 'dark',
+  'neutral+neutral': 'neutral',
+};
+
+export const BREEDING_CONFIG = {
+  breedingFeeSats: 100,
+  breedingOfferExpiryMs: 24 * 60 * 60 * 1000,
+  minParentLevel: 10,
+  statInheritanceWeight: 0.80,
+  varianceWeight: 0.20,
+  baseMutationsPerBreed: 1,
+};
+
+export const MOVES_BY_ELEMENT: Record<string, string[]> = {
+  fire: ['ember', 'fire-spin', 'flame-burst', 'inferno'],
+  water: ['splash', 'water-gun', 'bubble-beam', 'hydro-pump'],
+  earth: ['rock-throw', 'mud-shot', 'earthquake', 'boulder-toss'],
+  air: ['gust', 'wind-slash', 'air-cannon', 'tornado'],
+  light: ['spark', 'light-beam', 'solar-flare', 'radiance'],
+  dark: ['shadow-claw', 'night-shade', 'dark-pulse', 'void-touch'],
+  neutral: ['tackle', 'body-slam', 'quick-attack', 'headbutt'],
+  steam: ['steam-burst', 'vaporize', 'geyser', 'mist-cloud'],
+  lava: ['magma-flow', 'molten-rock', 'ember-storm', 'caldera'],
+  wildfire: ['firestorm', 'wind-catcher', 'blazing-trail', 'inferno'],
+  solar: ['sunburst', 'solar-flare', 'prismatic-ray', 'radiance'],
+  inferno: ['hellfire', 'soul-burn', 'demon-flame', 'devastation'],
+  mud: ['mud-slap', 'quicksand', 'mud-bomb', 'swamp-grasp'],
+  mist: ['mist', 'fog-cloud', 'sea-mist', 'dewdrop'],
+  rainbow: ['prismatic-burst', 'color-beam', 'light-show', 'prism-shine'],
+  void: ['black-hole', 'void-grasp', 'dimension-rift', 'oblivion'],
+  dust: ['sandstorm', 'dust-devil', 'particle-storm', 'debris'],
+  crystal: ['crystal-shard', 'prism-attack', 'gem-burst', 'diamond-dust'],
+  poison: ['toxic-cloud', 'poison-gas', 'venom-shot', 'plague'],
+  storm: ['thunderstorm', 'lightning-bolt', 'wind-rain', 'tempest'],
+  shadow: ['phantom-hit', 'eclipse', 'nightmare', 'soul-crush'],
+};

@@ -55,16 +55,19 @@ export async function savePetState(identity: NostrIdentity, pet: Pet): Promise<b
 
 /**
  * Load pet state from Nostr relays.
+ * Queries both the new d-tag and legacy d-tags for backward compatibility.
  */
 export async function loadPetState(pubkey: string): Promise<Pet | null> {
   try {
     const pool = getPool();
     const relays = getRelays();
 
+    const petStateTags = [NOSTR_D_TAGS.PET_STATE, 'com.fabricpet.pet.state', 'fabricpet-state'];
+
     const event = await pool.get(relays, {
       kinds: [NOSTR_KIND_APP_DATA],
       authors: [pubkey],
-      '#d': [NOSTR_D_TAGS.PET_STATE],
+      '#d': petStateTags,
     });
 
     if (!event) return null;
@@ -110,16 +113,19 @@ export async function saveHomeState(identity: NostrIdentity, home: HomeState): P
 
 /**
  * Load home state from Nostr relays.
+ * Queries both the new d-tag and legacy d-tags for backward compatibility.
  */
 export async function loadHomeState(pubkey: string): Promise<HomeState | null> {
   try {
     const pool = getPool();
     const relays = getRelays();
 
+    const homeStateTags = [NOSTR_D_TAGS.HOME_STATE, 'com.fabricpet.home.state'];
+
     const event = await pool.get(relays, {
       kinds: [NOSTR_KIND_APP_DATA],
       authors: [pubkey],
-      '#d': [NOSTR_D_TAGS.HOME_STATE],
+      '#d': homeStateTags,
     });
 
     if (!event) return null;

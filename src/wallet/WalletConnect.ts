@@ -21,6 +21,11 @@ declare global {
         }>;
       }>;
       getNetwork(): Promise<string>;
+      inscribe(args: {
+        data: Array<{ data: string }>;
+        address?: string;
+        receiveAddress?: string;
+      }): Promise<{ inscriptionId: string; inscriptionNumber: number }>;
     };
   }
 }

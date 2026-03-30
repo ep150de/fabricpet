@@ -2,7 +2,8 @@
 // FabricPet — Main Application
 // ============================================
 
-import { useEffect, useCallback } from 'react';
+import { useEffect, useCallback, lazy, Suspense } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useStore } from './store/useStore';
 import { loadStoredIdentity, hasNostrExtension, connectWithExtension, generateNewIdentity } from './nostr/identity';
 import { loadPetState, savePetState } from './nostr/petStorage';
@@ -12,11 +13,8 @@ import { Navigation } from './components/Navigation';
 import { PetView } from './components/PetView';
 import { BattleScreen } from './components/BattleScreen';
 import { WalletView } from './components/WalletView';
-import { HomeView } from './components/HomeView';
 import { ChatView } from './components/ChatView';
-import { ArenaView } from './components/ArenaView';
 import { SocialView } from './components/SocialView';
-import { ARView } from './components/ARView';
 import { SetupScreen } from './components/SetupScreen';
 import { scheduleSceneSync } from './rp1/SceneSync';
 import { parseDeepLink, clearDeepLinkParams } from './rp1/DeepLinkHandler';
@@ -24,7 +22,24 @@ import { startRP1Listener, stopRP1Listener } from './rp1/RP1Listener';
 import { Notification } from './components/Notification';
 import { HOME_THEMES } from './utils/constants';
 
+const HomeView = lazy(() => import('./components/HomeView').then(m => ({ default: m.HomeView })));
+const ArenaView = lazy(() => import('./components/ArenaView').then(m => ({ default: m.ArenaView })));
+const ARView = lazy(() => import('./components/ARView').then(m => ({ default: m.ARView })));
+
+function ViewLoader() {
+  const { t } = useTranslation();
+  return (
+    <div className="flex items-center justify-center h-64">
+      <div className="text-center">
+        <div className="text-4xl animate-bounce mb-2">🐾</div>
+        <p className="text phosphor-glow" style={{ color: '#00ff00' }}>{t('common.loading')}</p>
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
+  const { t } = useTranslation();
   const { identity, setIdentity, pet, setPet, home, setHome, currentView, setView, isLoading, setLoading, notification, setNotification, wallet, roster, setRoster } = useStore();
 
   // Initialize identity and load pet state
@@ -165,7 +180,7 @@ export default function App() {
   // Auto-unlock themes when pet levels up
   useEffect(() => {
     if (!pet) return;
-    let newlyUnlocked: string[] = [];
+    const newlyUnlocked: string[] = [];
     HOME_THEMES.forEach(theme => {
       if (pet.level >= theme.unlockLevel && !home.unlockedThemes.includes(theme.id)) {
         newlyUnlocked.push(theme.id);
@@ -178,7 +193,7 @@ export default function App() {
       });
       const theme = HOME_THEMES.find(t => t.id === newlyUnlocked[0]);
       if (theme) {
-        setNotification({ message: `${theme.emoji} ${theme.name} theme unlocked!`, emoji: '🎉' });
+        setNotification({ message: `${theme.emoji} ${theme.name} ${t('notifications.themeUnlocked')}`, emoji: '🎉' });
         setTimeout(() => setNotification(null), 4000);
       }
     }
@@ -222,14 +237,14 @@ export default function App() {
       home,
       // onSyncStart
       () => {
-        setNotification({ message: 'Syncing scene to RP1...', emoji: '🔄' });
+        setNotification({ message: t('notifications.syncingScene'), emoji: '🔄' });
       },
       // onSyncComplete
       (success: boolean) => {
         if (success) {
-          setNotification({ message: 'Scene synced to RP1!', emoji: '✅' });
+          setNotification({ message: t('notifications.sceneSynced'), emoji: '✅' });
         } else {
-          setNotification({ message: 'Scene sync failed - use manual share', emoji: '⚠️' });
+          setNotification({ message: t('notifications.sceneSyncFailed'), emoji: '⚠️' });
         }
         // Clear notification after 3 seconds
         setTimeout(() => setNotification(null), 3000);
@@ -265,9 +280,9 @@ export default function App() {
       <div className="min-h-screen flex items-center justify-center scanlines" style={{ background: '#0a0a0a' }}>
         <div className="text-center">
           <div className="text-6xl animate-bounce-pet mb-4">🐾</div>
-          <h1 className="text-2xl font-bold phosphor-glow" style={{ color: '#00ff00' }}>FabricPet</h1>
-          <p className="text-[#008800] mt-2 font-mono">&gt; Initializing system_</p>
-          <p className="text-[#008800] mt-1 font-mono animate-terminal-blink">Loading your pet...</p>
+          <h1 className="text-2xl font-bold phosphor-glow" style={{ color: '#00ff00' }}>{t('home.title')}</h1>
+          <p className="text-[#008800] mt-2 font-mono">&gt; {t('home.loadingPet')}</p>
+          <p className="text-[#008800] mt-1 font-mono animate-terminal-blink">&gt; _</p>
         </div>
       </div>
     );
@@ -286,13 +301,13 @@ export default function App() {
 
       {/* Main Content */}
       <main className="flex-1 overflow-y-auto pb-28" style={{ paddingBottom: 'max(7rem, calc(5rem + env(safe-area-inset-bottom, 0px)))' }}>
-        {currentView === 'home' && <HomeView />}
+        {currentView === 'home' && <Suspense fallback={<ViewLoader />}><HomeView /></Suspense>}
         {currentView === 'pet' && <PetView />}
         {currentView === 'chat' && <ChatView />}
         {currentView === 'battle' && <BattleScreen />}
-        {currentView === 'arena' && <ArenaView height="calc(100vh - 8rem)" />}
+        {currentView === 'arena' && <Suspense fallback={<ViewLoader />}><ArenaView height="calc(100vh - 8rem)" /></Suspense>}
         {currentView === 'social' && <SocialView />}
-        {currentView === 'ar' && <ARView />}
+        {currentView === 'ar' && <Suspense fallback={<ViewLoader />}><ARView /></Suspense>}
         {currentView === 'wallet' && <WalletView />}
       </main>
 

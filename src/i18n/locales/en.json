@@ -1,0 +1,113 @@
+{
+  "nav": {
+    "home": "Home",
+    "pet": "Pet",
+    "chat": "Chat",
+    "battle": "Battle",
+    "social": "Social",
+    "wallet": "Wallet"
+  },
+  "common": {
+    "loading": "Loading...",
+    "error": "Error",
+    "success": "Success",
+    "cancel": "Cancel",
+    "confirm": "Confirm",
+    "save": "Save",
+    "delete": "Delete",
+    "edit": "Edit",
+    "close": "Close",
+    "back": "Back",
+    "next": "Next",
+    "done": "Done",
+    "retry": "Retry"
+  },
+  "home": {
+    "title": "FabricPet",
+    "loadingPet": "Loading your pet..."
+  },
+  "setup": {
+    "title": "Welcome to FabricPet",
+    "subtitle": "Create your digital companion",
+    "createNew": "Create New Pet",
+    "importExisting": "Import Existing Pet"
+  },
+  "pet": {
+    "name": "Name",
+    "level": "Level",
+    "experience": "Experience",
+    "health": "Health",
+    "energy": "Energy",
+    "happiness": "Happiness",
+    "hunger": "Hunger",
+    "element": "Element",
+    "rarity": "Rarity",
+    "stats": "Stats",
+    "lineage": "Lineage",
+    "breed": "Breed",
+    "mintOrdinal": "Mint as Ordinal",
+    "exportGLB": "Export 3D Model",
+    "shareRP1": "Share to RP1"
+  },
+  "battle": {
+    "title": "Battle Arena",
+    "selectOpponent": "Select Opponent",
+    "startBattle": "Start Battle",
+    "attack": "Attack",
+    "defend": "Defend",
+    "special": "Special Move",
+    "win": "Victory!",
+    "lose": "Defeat",
+    "draw": "Draw"
+  },
+  "wallet": {
+    "title": "Wallet",
+    "connect": "Connect Wallet",
+    "disconnect": "Disconnect",
+    "balance": "Balance",
+    "inscriptions": "Inscriptions",
+    "send": "Send",
+    "receive": "Receive",
+    "noInscriptions": "No inscriptions yet"
+  },
+  "social": {
+    "title": "Social",
+    "friends": "Friends",
+    "leaderboard": "Leaderboard",
+    "breeding": "Breeding Market",
+    "nearby": "Nearby Pets"
+  },
+  "chat": {
+    "title": "Messages",
+    "placeholder": "Type a message...",
+    "send": "Send",
+    "noMessages": "No messages yet"
+  },
+  "notifications": {
+    "petBorn": "A new pet has been born!",
+    "levelUp": "Level up!",
+    "syncingScene": "Syncing scene to RP1...",
+    "sceneSynced": "Scene synced to RP1!",
+    "sceneSyncFailed": "Scene sync failed",
+    "themeUnlocked": "Theme unlocked!",
+    "petSaved": "Pet saved",
+    "petSyncFailed": "Pet sync failed"
+  },
+  "elements": {
+    "fire": "Fire",
+    "water": "Water",
+    "earth": "Earth",
+    "air": "Air",
+    "electric": "Electric",
+    "ice": "Ice",
+    "shadow": "Shadow",
+    "light": "Light"
+  },
+  "rarity": {
+    "common": "Common",
+    "uncommon": "Uncommon",
+    "rare": "Rare",
+    "epic": "Epic",
+    "legendary": "Legendary"
+  }
+}

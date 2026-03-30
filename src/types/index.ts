@@ -139,6 +139,28 @@ export interface NostrProfile {
   picture?: string;
 }
 
+// --- Direct Message Types (NIP-17) ---
+
+export interface DirectMessage {
+  id: string;
+  sender: string;
+  recipient: string;
+  content: string;
+  timestamp: number;
+  read: boolean;
+  encrypted: boolean;
+}
+
+export interface Conversation {
+  pubkey: string;
+  npub: string;
+  name?: string;
+  picture?: string;
+  lastMessage?: DirectMessage;
+  unreadCount: number;
+  updatedAt: number;
+}
+
 export interface PetStateEvent {
   pet: Pet;
   avatarId: string | null;
@@ -189,3 +211,87 @@ export interface WalletState {
 // --- App State ---
 
 export type AppView = 'home' | 'pet' | 'battle' | 'arena' | 'social' | 'wallet' | 'chat' | 'ar' | 'avatars' | 'settings';
+
+// --- Breeding & Lineage Types ---
+
+export type RarityTier = 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary';
+
+export interface PetLineage {
+  petId: string;
+  parentIds: [string | null, string | null]; // [fatherId, motherId]
+  generation: number;
+  bloodline: string[]; // Array of ancestor pubkeys
+  birthEvent: {
+    timestamp: number;
+    breedingEventId: string | null;
+  };
+  rarity: RarityTier;
+}
+
+export type BreedingOfferStatus = 'offered' | 'accepted' | 'rejected' | 'completed' | 'expired';
+
+export interface BreedingOffer {
+  id: string;
+  offerer: string;
+  matriarchId: string;   // Pet offering to breed
+  patrilinealId: string; // Pet offering to breed
+  matriarchName: string;
+  patrilinealName: string;
+  matriarchElement: ElementalType;
+  patrilinealElement: ElementalType;
+  matriarchRarity: RarityTier;
+  patrilinealRarity: RarityTier;
+  status: BreedingOfferStatus;
+  breedingFeeSats: number;
+  createdAt: number;
+  expiresAt: number;
+}
+
+export interface BreedingRequest {
+  id: string;
+  requester: string;
+  offerId: string;
+  responder: string;
+  offeredPetId: string;
+  offeredPetName: string;
+  offeredPetElement: ElementalType;
+  status: 'pending' | 'accepted' | 'rejected' | 'completed';
+  breedingFeeSats: number;
+  createdAt: number;
+}
+
+export interface BreedingResult {
+  offspringId: string;
+  offspringName: string;
+  matriarchId: string;
+  patrilinealId: string;
+  elementalType: ElementalType;
+  rarity: RarityTier;
+  generation: number;
+  inheritedMoves: string[];
+  timestamp: number;
+}
+
+// --- glTF Metadata Types ---
+
+export interface PetGlTFMetadata {
+  version: '1.0';
+  petId: string;
+  name: string;
+  level: number;
+  stage: PetStage;
+  elementalType: ElementalType;
+  battleStats: BattleStats;
+  moves: string[];
+  ownerNpub: string;
+  rarity?: RarityTier;
+  generation?: number;
+}
+
+export interface GLTFExtensionData {
+  petId: string;
+  name: string;
+  level: number;
+  elementalType: ElementalType;
+  battleStats: BattleStats;
+}

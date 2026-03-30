@@ -327,7 +327,7 @@ export function ARView() {
         let reactionEndTime = 0;
         let ballInFlight = false;
         let ballVelocity = new THREE.Vector3();
-        let previousHandPosition = new THREE.Vector3();
+        const previousHandPosition = new THREE.Vector3();
         let throwDetected = false;
 
         // Check for hand tracking support
