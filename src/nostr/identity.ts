@@ -29,7 +29,7 @@ export interface NostrIdentity {
 // --- Web Crypto helpers for nsec encryption ---
 
 const IV_LENGTH = 12;
-const CRYPTO_KEY_STORAGE = 'fabricpet_crypto_key';
+const FIXED_SALT_PREFIX = 'fabricpet-nsec-v2';
 
 function toBase64(buffer: ArrayBuffer): string {
   return btoa(String.fromCharCode(...new Uint8Array(buffer)));
@@ -39,55 +39,48 @@ function fromBase64(str: string): Uint8Array {
   return new Uint8Array(atob(str).split('').map(c => c.charCodeAt(0)));
 }
 
-async function getOrCreateCryptoKey(): Promise<CryptoKey | null> {
-  try {
-    const existing = sessionStorage.getItem(CRYPTO_KEY_STORAGE);
-    if (existing) {
-      const bytes = fromBase64(existing);
-      const ab = new ArrayBuffer(bytes.length);
-      new Uint8Array(ab).set(bytes);
-      return await crypto.subtle.importKey('raw', ab, 'AES-GCM', true, ['encrypt', 'decrypt']);
-    }
-    const key = await crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, true, ['encrypt', 'decrypt']);
-    const raw = await crypto.subtle.exportKey('raw', key);
-    sessionStorage.setItem(CRYPTO_KEY_STORAGE, toBase64(raw));
-    return key;
-  } catch {
-    return null;
-  }
+async function deriveCryptoKey(pubkey: string): Promise<CryptoKey> {
+  const encoder = new TextEncoder();
+  const saltSource = encoder.encode(FIXED_SALT_PREFIX + pubkey);
+  const hash = await crypto.subtle.digest('SHA-256', saltSource);
+  const salt = new Uint8Array(hash).slice(0, 16);
+  const keyMaterial = await crypto.subtle.importKey(
+    'raw',
+    encoder.encode(pubkey + ':fabricpet:v2'),
+    'PBKDF2',
+    false,
+    ['deriveKey']
+  );
+  return crypto.subtle.deriveKey(
+    { name: 'PBKDF2', salt: salt as BufferSource, iterations: 100000, hash: 'SHA-256' },
+    keyMaterial,
+    { name: 'AES-GCM', length: 256 },
+    false,
+    ['encrypt', 'decrypt']
+  );
 }
 
-async function encryptNsec(plaintext: string): Promise<string | null> {
-  try {
-    const key = await getOrCreateCryptoKey();
-    if (!key) return null;
-    const iv = crypto.getRandomValues(new Uint8Array(IV_LENGTH));
-    const data = new TextEncoder().encode(plaintext);
-    const cipher = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, data.buffer);
-    const combined = new Uint8Array(IV_LENGTH + cipher.byteLength);
-    combined.set(iv);
-    combined.set(new Uint8Array(cipher), IV_LENGTH);
-    return 'enc:' + toBase64(combined.buffer);
-  } catch {
-    return null;
-  }
+async function encryptNsec(plaintext: string, pubkey: string): Promise<string> {
+  const key = await deriveCryptoKey(pubkey);
+  const iv = crypto.getRandomValues(new Uint8Array(IV_LENGTH));
+  const data = new TextEncoder().encode(plaintext);
+  const cipher = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, data.buffer);
+  const combined = new Uint8Array(IV_LENGTH + cipher.byteLength);
+  combined.set(iv);
+  combined.set(new Uint8Array(cipher), IV_LENGTH);
+  return 'enc:' + toBase64(combined.buffer);
 }
 
-async function decryptNsec(ciphertext: string): Promise<string | null> {
-  try {
-    if (!ciphertext.startsWith('enc:')) return null;
-    const key = await getOrCreateCryptoKey();
-    if (!key) return null;
-    const raw = fromBase64(ciphertext.slice(4));
-    const iv = raw.slice(0, IV_LENGTH);
-    const data = raw.slice(IV_LENGTH);
-    const ab = new ArrayBuffer(data.length);
-    new Uint8Array(ab).set(data);
-    const plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, ab);
-    return new TextDecoder().decode(plain);
-  } catch {
-    return null;
-  }
+async function decryptNsec(ciphertext: string, pubkey: string): Promise<string> {
+  if (!ciphertext.startsWith('enc:')) throw new Error('Not encrypted');
+  const raw = fromBase64(ciphertext.slice(4));
+  const iv = raw.slice(0, IV_LENGTH);
+  const data = raw.slice(IV_LENGTH);
+  const ab = new ArrayBuffer(data.length);
+  new Uint8Array(ab).set(data);
+  const key = await deriveCryptoKey(pubkey);
+  const plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, ab);
+  return new TextDecoder().decode(plain);
 }
 
 /**
@@ -126,9 +119,9 @@ export async function generateNewIdentity(): Promise<NostrIdentity> {
   const npub = npubEncode(pubkey);
   const nsec = nsecEncode(secretKey);
 
-  // Encrypt and store the nsec
-  const encrypted = await encryptNsec(nsec);
-  localStorage.setItem('fabricpet_nsec', encrypted || nsec);
+  // Encrypt and store the nsec (salt derived deterministically from pubkey)
+  const encrypted = await encryptNsec(nsec, pubkey);
+  localStorage.setItem('fabricpet_nsec', encrypted);
   localStorage.setItem('fabricpet_pubkey', pubkey);
 
   return {
@@ -137,6 +130,14 @@ export async function generateNewIdentity(): Promise<NostrIdentity> {
     secretKey,
     isExtension: false,
   };
+}
+
+/**
+ * Clear stored identity from localStorage (for recovery when key is lost).
+ */
+export function clearIdentity(): void {
+  localStorage.removeItem('fabricpet_nsec');
+  localStorage.removeItem('fabricpet_pubkey');
 }
 
 /**
@@ -150,29 +151,31 @@ export async function loadStoredIdentity(): Promise<NostrIdentity | null> {
 
     if (!pubkey) return null;
 
-    // Decode nsec to get the actual secret key for signing
-    // Try encrypted format first, fall back to legacy plaintext
     let secretKey: Uint8Array | null = null;
     if (nsecStr) {
       if (nsecStr.startsWith('enc:')) {
-        const decrypted = await decryptNsec(nsecStr);
-        if (decrypted) {
+        try {
+          const decrypted = await decryptNsec(nsecStr, pubkey);
           secretKey = await decodeNsecAsync(decrypted);
           if (secretKey) {
-            console.log('[Identity] ✅ Secret key decrypted and decoded — signing enabled');
+            console.log('[Identity] ✅ Secret key decrypted — signing enabled');
           }
+        } catch (e) {
+          // Decryption failed — data may be corrupted or from a different browser profile.
+          // Clear corrupted data and return null so App.tsx regenerates.
+          console.warn('[Identity] ⚠️ Decryption failed — identity data corrupted or from different browser.');
+          localStorage.removeItem('fabricpet_nsec');
+          localStorage.removeItem('fabricpet_pubkey');
+          return null;
         }
       } else {
         // Legacy plaintext nsec — decode and migrate to encrypted
         secretKey = await decodeNsecAsync(nsecStr);
         if (secretKey) {
           console.log('[Identity] ✅ Secret key decoded from plaintext — signing enabled');
-          // Migrate to encrypted storage
-          const encrypted = await encryptNsec(nsecStr);
-          if (encrypted) {
-            localStorage.setItem('fabricpet_nsec', encrypted);
-            console.log('[Identity] ✅ Migrated nsec to encrypted storage');
-          }
+          const encrypted = await encryptNsec(nsecStr, pubkey);
+          localStorage.setItem('fabricpet_nsec', encrypted);
+          console.log('[Identity] ✅ Migrated nsec to encrypted storage');
         }
       }
     }

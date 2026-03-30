@@ -19,7 +19,7 @@ const ELEMENT_EMOJI: Record<string, string> = {
 };
 
 export function SocialView() {
-  const { identity, pet, deepLinkParams, setDeepLinkParams, setView } = useStore();
+  const { identity, setIdentity, pet, deepLinkParams, setDeepLinkParams, setView } = useStore();
   const [tab, setTab] = useState<SocialTab>('leaderboard');
 
   // Handle deep link params (e.g., from QR scan or URL ?rp1_action=visit&pubkey=...)
@@ -265,14 +265,36 @@ function LeaderboardTab() {
           
           {/* Check if identity has signing capability */}
           {!(identity.secretKey || identity.isExtension) && (
-            <div className="mb-3 p-2 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
-              <p className="text-xs text-yellow-400">
-                ⚠️ Your identity doesn't have signing capability. To publish to Nostr relays, you need:
+            <div className="mb-3 p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
+              <p className="text-xs text-yellow-400 mb-2">
+                ⚠️ Your identity doesn't have signing capability. This can happen if your browser cleared session data.
               </p>
-              <ul className="text-xs text-yellow-500 mt-1 ml-4 list-disc">
-                <li>A NIP-07 browser extension (nos2x, Alby)</li>
-                <li>Or generate a new identity with signing capability</li>
-              </ul>
+              <button
+                onClick={async () => {
+                  setSaving(true);
+                  try {
+                    const { clearIdentity, generateNewIdentity } = await import('../nostr/identity');
+                    clearIdentity();
+                    const newId = await generateNewIdentity();
+                    useStore.getState().setIdentity(newId);
+                    if (pet) {
+                      await savePetState(newId, pet);
+                    }
+                    setSaveStatus('✅ New identity created! Your pet is now publishing.');
+                  } catch {
+                    setSaveStatus('❌ Failed to create identity. Try refreshing.');
+                  }
+                  setSaving(false);
+                  setTimeout(() => setSaveStatus(null), 5000);
+                }}
+                disabled={saving}
+                className="w-full text-xs bg-yellow-600 text-white py-2 rounded-lg hover:bg-yellow-500 disabled:opacity-50"
+              >
+                {saving ? '🔄 Creating...' : '🔑 Generate New Identity'}
+              </button>
+              <p className="text-xs text-yellow-600 mt-2">
+                Creates a new Nostr identity. Previous pet data on relays won't transfer.
+              </p>
             </div>
           )}
 
