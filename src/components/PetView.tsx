@@ -11,6 +11,8 @@ import { savePetState } from '../nostr/petStorage';
 import { getInscriptionPreviewUrl } from '../avatar/OrdinalRenderer';
 import { PetRosterBar } from './PetRosterBar';
 import { RP1ShareButton } from '../rp1/RP1ShareButton';
+import { LineageViewer } from './LineageViewer';
+import { mintPetAsOrdinal, isPetEligibleForMinting } from '../wallet/OrdinalMinter';
 import type { PetNeeds } from '../types';
 
 const needsConfig: { key: keyof PetNeeds; label: string; emoji: string; color: string }[] = [
@@ -32,6 +34,7 @@ export function PetView() {
   const { pet, setPet, identity, setNotification, currentBehavior, setCurrentBehavior, setView } = useStore();
   const [reactionEmote, setReactionEmote] = useState<{ emoji: string; message: string } | null>(null);
   const [ordinalPreview, setOrdinalPreview] = useState<string | null>(null);
+  const [isMinting, setIsMinting] = useState(false);
   const behaviorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Load ordinal preview image
@@ -87,6 +90,43 @@ export function PetView() {
     }
   };
 
+  const handleMintAsOrdinal = async () => {
+    if (!pet) return;
+
+    const eligibility = isPetEligibleForMinting(pet);
+    if (!eligibility.eligible) {
+      setNotification({ message: eligibility.reason || 'Cannot mint', emoji: '⚠️' });
+      return;
+    }
+
+    setIsMinting(true);
+    setNotification({ message: '₿ Initiating ordinal inscription...', emoji: '₿' });
+
+    try {
+      const result = await mintPetAsOrdinal(pet, identity?.npub);
+
+      if (result.success) {
+        setNotification({
+          message: `🎉 Inscribed! #${result.inscriptionNumber}`,
+          emoji: '₿',
+        });
+      } else {
+        setNotification({
+          message: result.error || 'Inscription failed',
+          emoji: '❌',
+        });
+      }
+    } catch (error) {
+      setNotification({
+        message: error instanceof Error ? error.message : 'Minting failed',
+        emoji: '❌',
+      });
+    }
+
+    setIsMinting(false);
+  };
+
+  const eligibility = pet ? isPetEligibleForMinting(pet) : { eligible: false };
   const overallHealth = getOverallHealth(pet.needs);
   const critical = isCritical(pet.needs);
   const suggestion = getSuggestion(pet.needs);
@@ -252,6 +292,24 @@ export function PetView() {
           </div>
         )}
       </div>
+
+      {/* Mint as Ordinal Button */}
+      {eligibility.eligible && (
+        <button
+          onClick={handleMintAsOrdinal}
+          disabled={isMinting}
+          className={`w-full font-semibold py-3 rounded-xl transition-all text-sm mt-4 ${
+            isMinting
+              ? 'bg-yellow-500/20 text-yellow-300 border border-yellow-500/50'
+              : 'bg-gradient-to-r from-orange-500 to-amber-500 text-white hover:from-orange-600 hover:to-amber-600'
+          }`}
+        >
+          {isMinting ? '₿ Inscribing...' : '₿ Inscribe as Ordinal'}
+        </button>
+      )}
+
+      {/* Lineage Viewer */}
+      <LineageViewer pet={pet} />
 
       {/* AR Mode Button */}
       <button

@@ -10,8 +10,9 @@ import { loadPetByPubkey, signGuestbook, npubToHex, type VisitedPet } from '../n
 import { generateQRDataUrlAsync, parseQRCode, startQRScanner, isQRScanSupported } from '../social/QRCodeManager';
 import { savePetState } from '../nostr/petStorage';
 import { NearbyPets } from './NearbyPets';
+import { BreedingMarketplace } from './BreedingMarketplace';
 
-type SocialTab = 'leaderboard' | 'visit' | 'nearby' | 'qr';
+type SocialTab = 'leaderboard' | 'visit' | 'nearby' | 'qr' | 'breeding';
 
 const ELEMENT_EMOJI: Record<string, string> = {
   fire: '🔥', water: '💧', earth: '🌿', air: '💨',
@@ -38,7 +39,7 @@ export function SocialView() {
       </div>
 
       {/* Tab Switcher */}
-      <div className="flex gap-2 mb-4">
+      <div className="flex gap-2 mb-4 flex-wrap">
         <button
           onClick={() => setTab('leaderboard')}
           className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-all ${
@@ -79,12 +80,23 @@ export function SocialView() {
         >
           🔲 QR Meet
         </button>
+        <button
+          onClick={() => setTab('breeding')}
+          className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-all ${
+            tab === 'breeding'
+              ? 'bg-pink-500/20 text-pink-400 border border-pink-500/50'
+              : 'bg-[#1a1a2e] text-gray-500 border border-gray-800'
+          }`}
+        >
+          💞 Breed
+        </button>
       </div>
 
       {tab === 'leaderboard' && <LeaderboardTab />}
       {tab === 'visit' && <VisitTab />}
       {tab === 'nearby' && <NearbyPets />}
       {tab === 'qr' && <QRMeetTab />}
+      {tab === 'breeding' && <BreedingMarketplace />}
     </div>
   );
 }

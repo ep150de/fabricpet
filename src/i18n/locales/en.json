@@ -77,6 +77,34 @@
     "breeding": "Breeding Market",
     "nearby": "Nearby Pets"
   },
+  "breeding": {
+    "title": "Breeding Market",
+    "browse": "Browse",
+    "myOffers": "My Offers",
+    "create": "Create",
+    "noOffers": "No breeding offers available",
+    "beFirst": "Be the first to create one!",
+    "selectPet": "Select your pet...",
+    "noEligiblePets": "No eligible pets to breed. Pets must be level 5+ and not in egg/baby stage.",
+    "createIdentity": "Create an identity first",
+    "needTwoPets": "You need at least 2 eligible pets to breed",
+    "publishOffer": "Publish Breeding Offer",
+    "publishing": "Publishing...",
+    "offerPublished": "Breeding offer published!",
+    "breed": "Breed with selected pet",
+    "breedingLabel": "Breeding...",
+    "selectMatriarch": "Select matriarch...",
+    "selectPatrilineal": "Select patrilineal...",
+    "breedingFee": "Breeding Fee (sats)",
+    "preview": "Preview",
+    "expired": "This offer has expired",
+    "myOffersEmpty": "You haven't created any breeding offers",
+    "goCreate": "Go to Create tab to list your pets",
+    "offerDetails": "Offer Details",
+    "father": "Father",
+    "mother": "Mother",
+    "fee": "Fee"
+  },
   "chat": {
     "title": "Messages",
     "placeholder": "Type a message...",
@@ -109,5 +137,18 @@
     "rare": "Rare",
     "epic": "Epic",
     "legendary": "Legendary"
+  },
+  "lineage": {
+    "title": "Lineage",
+    "generation": "Generation",
+    "rarity": "Rarity",
+    "parents": "Parents",
+    "father": "Father",
+    "mother": "Mother",
+    "bloodline": "Bloodline",
+    "ancestors": "ancestors",
+    "unknown": "Unknown",
+    "noParentData": "No parent data",
+    "born": "Born"
   }
 }
