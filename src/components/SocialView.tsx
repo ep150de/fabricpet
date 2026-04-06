@@ -5,7 +5,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useStore } from '../store/useStore';
 import { getStageEmoji } from '../engine/PetStateMachine';
-import { fetchLeaderboard, type LeaderboardEntry } from '../nostr/leaderboard';
+import { fetchLeaderboard, loadLocalLeaderboard, buildLocalEntry, type LeaderboardEntry } from '../nostr/leaderboard';
 import { loadPetByPubkey, signGuestbook, npubToHex, type VisitedPet } from '../nostr/petVisitor';
 import { generateQRDataUrlAsync, parseQRCode, startQRScanner, isQRScanSupported } from '../social/QRCodeManager';
 import { savePetState } from '../nostr/petStorage';
@@ -148,30 +148,65 @@ function LeaderboardTab() {
       setLoadTime(Math.floor((Date.now() - start) / 1000));
     }, 1000);
 
+    let data: LeaderboardEntry[] = [];
+    let fromCache = false;
+
     try {
-      const data = await fetchLeaderboard(12000); // Increased timeout to 12s
-      setEntries(data);
-      if (data.length === 0) {
-        // Distinguish between "no data" and potential issues
-        const hasStoredPet = localStorage.getItem('fabricpet_pubkey');
-        if (hasStoredPet) {
-          setError('Leaderboard is empty! Try "Force Save" below to publish your pet, then refresh.');
-        } else {
-          setError('No pets found on Nostr relays yet. Create a pet and save it to appear here!');
-        }
-      }
+      data = await fetchLeaderboard(12000); // 12s timeout
     } catch (e: any) {
       console.error('[Leaderboard] Failed to load:', e);
-      // More specific error based on error type
-      if (e?.message?.includes('timeout')) {
-        setError('Relay connection timed out. Nostr relays may be slow - try again in a moment.');
-      } else {
-        setError('Failed to connect to Nostr relays. Check your internet connection and try again.');
+      // Fall back to local cache
+      data = loadLocalLeaderboard();
+      fromCache = data.length > 0;
+      if (!fromCache) {
+        if (e?.message?.includes('timeout')) {
+          setError('Relay connection timed out. Nostr relays may be slow - try again in a moment.');
+        } else {
+          setError('Failed to connect to Nostr relays. Check your internet connection and try again.');
+        }
       }
     }
+
+    // If Nostr returned empty, try local cache
+    if (data.length === 0) {
+      const cached = loadLocalLeaderboard();
+      if (cached.length > 0) {
+        data = cached;
+        fromCache = true;
+      }
+    }
+
+    // Inject current user's pet if not already present
+    if (identity && pet) {
+      const alreadyPresent = data.some(e => e.pubkey === identity.pubkey);
+      if (!alreadyPresent) {
+        const localEntry = buildLocalEntry(identity.pubkey, pet);
+        data = [...data, localEntry];
+        // Re-sort after injection
+        data.sort((a, b) => {
+          if (b.score !== a.score) return b.score - a.score;
+          if (b.petLevel !== a.petLevel) return b.petLevel - a.petLevel;
+          return b.petXP - a.petXP;
+        });
+      }
+    }
+
+    setEntries(data);
+
+    if (data.length === 0) {
+      const hasStoredPet = localStorage.getItem('fabricpet_pubkey');
+      if (hasStoredPet) {
+        setError('Leaderboard is empty! Try "Force Save" below to publish your pet, then refresh.');
+      } else {
+        setError('No pets found on Nostr relays yet. Create a pet and save it to appear here!');
+      }
+    } else if (fromCache) {
+      setError('Showing cached results — Nostr relays were unreachable. Tap refresh to try again.');
+    }
+
     clearInterval(timer);
     setLoading(false);
-  }, []);
+  }, [identity, pet]);
 
   useEffect(() => {
     loadLeaderboard();

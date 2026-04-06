@@ -16,7 +16,7 @@ export async function savePetState(identity: NostrIdentity, pet: Pet): Promise<b
     const event = {
       kind: NOSTR_KIND_APP_DATA,
       created_at: Math.floor(Date.now() / 1000),
-      tags: [['d', NOSTR_D_TAGS.PET_STATE]],
+      tags: [['d', NOSTR_D_TAGS.PET_STATE], ['t', 'fabricpet']],
       content: JSON.stringify({
         pet,
         lastSaved: Date.now(),
