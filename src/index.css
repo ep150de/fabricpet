@@ -200,11 +200,17 @@ body {
   100% { transform: translateY(100vh); opacity: 0; }
 }
 
+@keyframes slide-down {
+  0% { transform: translate(-50%, -100%); opacity: 0; }
+  100% { transform: translate(-50%, 0); opacity: 1; }
+}
+
 .animate-shake { animation: shake 0.3s ease-in-out; }
 .animate-bounce-pet { animation: bounce 1s ease-in-out infinite; }
 .animate-pulse-glow { animation: pulse-glow 2s ease-in-out infinite; }
 .animate-float { animation: float 3s ease-in-out infinite; }
 .animate-terminal-blink { animation: terminal-blink 1s step-end infinite; }
+.animate-slide-down { animation: slide-down 0.3s ease-out; }
 
 /* CRT screen curvature effect */
 .crt-effect {

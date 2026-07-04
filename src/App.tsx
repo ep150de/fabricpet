@@ -16,6 +16,9 @@ import { WalletView } from './components/WalletView';
 import { ChatView } from './components/ChatView';
 import { SocialView } from './components/SocialView';
 import { SetupScreen } from './components/SetupScreen';
+import { MultiplayerView } from './components/MultiplayerView';
+import { AchievementNotification } from './components/AchievementNotification';
+import { useAchievementTracker } from './hooks/useAchievementTracker';
 import { scheduleSceneSync } from './rp1/SceneSync';
 import { parseDeepLink, clearDeepLinkParams } from './rp1/DeepLinkHandler';
 import { startRP1Listener, stopRP1Listener } from './rp1/RP1Listener';
@@ -41,6 +44,9 @@ function ViewLoader() {
 export default function App() {
   const { t } = useTranslation();
   const { identity, setIdentity, pet, setPet, home, setHome, currentView, setView, isLoading, setLoading, notification, setNotification, wallet, roster, setRoster } = useStore();
+
+  // Track achievements
+  useAchievementTracker();
 
   // Initialize identity and load pet state
   const initialize = useCallback(async () => {
@@ -298,6 +304,7 @@ export default function App() {
     <div className="min-h-screen flex flex-col scanlines" style={{ background: '#0a0a0a' }}>
       {/* Notification */}
       {notification && <Notification message={notification.message} emoji={notification.emoji} />}
+      <AchievementNotification />
 
       {/* Main Content */}
       <main className="flex-1 overflow-y-auto pb-28" style={{ paddingBottom: 'max(7rem, calc(5rem + env(safe-area-inset-bottom, 0px)))' }}>
@@ -309,6 +316,7 @@ export default function App() {
         {currentView === 'social' && <SocialView />}
         {currentView === 'ar' && <Suspense fallback={<ViewLoader />}><ARView /></Suspense>}
         {currentView === 'wallet' && <WalletView />}
+        {currentView === 'multiplayer' && <MultiplayerView />}
       </main>
 
       {/* Bottom Navigation */}

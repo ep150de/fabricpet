@@ -171,7 +171,7 @@ export class ArenaAudio {
    */
   private createPlaceholderSound(
     event: AudioEvent,
-    position?: THREE.Vector3
+    _position?: THREE.Vector3
   ): THREE.Audio | null {
     if (!this.audioContext) return null;
 

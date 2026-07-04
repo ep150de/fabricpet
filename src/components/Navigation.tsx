@@ -13,6 +13,7 @@ const navItems: { view: AppView; emoji: string; key: string }[] = [
   { view: 'battle', emoji: '⚔️', key: 'nav.battle' },
   { view: 'social', emoji: '👥', key: 'nav.social' },
   { view: 'wallet', emoji: '💰', key: 'nav.wallet' },
+  { view: 'multiplayer', emoji: '🔗', key: 'nav.multiplayer' },
 ];
 
 export function Navigation() {

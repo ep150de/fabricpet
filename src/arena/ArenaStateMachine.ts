@@ -131,7 +131,7 @@ export class ArenaStateMachine {
    * Update the state machine each frame
    * @param delta - Time delta in seconds
    */
-  update(delta: number): void {
+  update(_delta: number): void {
     if (!this.arenaData) return;
 
     switch (this.arenaData.status) {

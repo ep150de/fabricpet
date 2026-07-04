@@ -12,18 +12,74 @@ import type {
   ArenaPlayerData,
   BattleTurnResult,
   ElementType,
-  Vector3,
   BiomeDefinition,
 } from '../../types/arenaTypes';
+
+/**
+ * Pet data structure for battle initialization
+ */
+export interface PetBattleData {
+  id: string;
+  name: string;
+  level: number;
+  elementalType: ElementType;
+  battleStats: {
+    hp: number;
+    maxHp: number;
+    atk: number;
+    def: number;
+    spd: number;
+    special: number;
+  };
+  moves: string[];
+}
+
+/**
+ * Battle turn result from engine
+ */
+export interface BattleTurnExecution {
+  turnNumber: number;
+  attackerId: string;
+  defenderId: string;
+  moveId: string;
+  moveName: string;
+  moveType?: ElementType;
+  damage: number;
+  isCritical: boolean;
+  effectiveness: string | number;
+  statusApplied?: string;
+  statusCleared?: string;
+  attackerHp?: number;
+  defenderHp?: number;
+  attackerHpAfter: number;
+  defenderHpAfter: number;
+  isFainted: boolean;
+  category?: 'projectile' | 'area' | 'contact' | 'buff' | 'status';
+  isStatus?: boolean;
+  isBuff?: boolean;
+  isContact?: boolean;
+  isArea?: boolean;
+}
+
+/**
+ * Current battle state snapshot
+ */
+export interface BattleSnapshot {
+  turnNumber: number;
+  pet1Hp: number;
+  pet2Hp: number;
+  isOver: boolean;
+  winner: string | null;
+}
 
 /**
  * FabricPet BattleEngine interface (expected from fabricpet dependency)
  * This mirrors the expected API surface of FabricPet's battle system.
  */
 export interface FabricPetBattleEngine {
-  initBattle(pet1Data: any, pet2Data: any): void;
-  executeTurn(moveId: string): any;
-  getCurrentState(): any;
+  initBattle(pet1Data: PetBattleData, pet2Data: PetBattleData): void;
+  executeTurn(moveId: string): BattleTurnExecution;
+  getCurrentState(): BattleSnapshot;
   isOver(): boolean;
   getWinner(): string | null;
 }
@@ -41,7 +97,7 @@ export type BattleEventType =
 
 export interface BattleEvent {
   type: BattleEventType;
-  data: any;
+  data: Record<string, unknown> | null;
   timestamp: number;
 }
 
@@ -67,8 +123,8 @@ export class ArenaBattleManager {
     arenaId: string;
     biome: BiomeDefinition;
     battleEngine: FabricPetBattleEngine;
-    challengerPetData: any;
-    defenderPetData: any;
+    challengerPetData: PetBattleData;
+    defenderPetData: PetBattleData;
   }): ArenaBattleData {
     this.battleEngine = params.battleEngine;
     this.biome = params.biome;
@@ -152,7 +208,7 @@ export class ArenaBattleManager {
       isFainted: result.isFainted || false,
     };
 
-    this.emitEvent('move_executed', turnResult);
+    this.emitEvent('move_executed', turnResult as unknown as Record<string, unknown>);
 
     if (turnResult.damage > 0) {
       this.emitEvent('damage_dealt', {
@@ -273,25 +329,23 @@ export class ArenaBattleManager {
   /**
    * Apply biome stat modifiers to pet data
    */
-  private applyBiomeModifiers(petData: any, biome: BiomeDefinition): any {
+  private applyBiomeModifiers(petData: PetBattleData, biome: BiomeDefinition): PetBattleData {
     const modified = { ...petData };
-    const petElement = petData.elementType as ElementType;
+    const petElement = petData.elementalType;
     const modifier = biome.statModifiers[petElement];
 
     if (modifier) {
       // Apply modifier to relevant stats
-      if (modified.stats) {
-        modified.stats = { ...modified.stats };
-        modified.stats.attack = Math.floor(
-          (modified.stats.attack || 10) * modifier
-        );
-        modified.stats.defense = Math.floor(
-          (modified.stats.defense || 10) * modifier
-        );
-        modified.stats.speed = Math.floor(
-          (modified.stats.speed || 10) * modifier
-        );
-      }
+      modified.battleStats = { ...modified.battleStats };
+      modified.battleStats.atk = Math.floor(
+        (modified.battleStats.atk || 10) * modifier
+      );
+      modified.battleStats.def = Math.floor(
+        (modified.battleStats.def || 10) * modifier
+      );
+      modified.battleStats.spd = Math.floor(
+        (modified.battleStats.spd || 10) * modifier
+      );
     }
 
     return modified;
@@ -301,13 +355,13 @@ export class ArenaBattleManager {
    * Categorize a move for animation purposes
    */
   private categorizeMoveForAnimation(
-    result: any
+    result: BattleTurnExecution
   ): 'projectile' | 'area' | 'contact' | 'buff' | 'status' {
-    if (result.category) return result.category;
-    if (result.isStatus) return 'status';
-    if (result.isBuff) return 'buff';
-    if (result.isContact) return 'contact';
-    if (result.isArea) return 'area';
+    if ((result as any).category) return (result as any).category;
+    if ((result as any).isStatus) return 'status';
+    if ((result as any).isBuff) return 'buff';
+    if ((result as any).isContact) return 'contact';
+    if ((result as any).isArea) return 'area';
     return 'projectile'; // Default
   }
 
@@ -315,12 +369,17 @@ export class ArenaBattleManager {
    * Map effectiveness from FabricPet format
    */
   private mapEffectiveness(
-    effectiveness: any
+    effectiveness: string | number
   ): 'super_effective' | 'not_very_effective' | 'normal' {
-    if (effectiveness === 'super' || effectiveness === 'super_effective' || effectiveness > 1) {
+    if (typeof effectiveness === 'number') {
+      if (effectiveness > 1) return 'super_effective';
+      if (effectiveness < 1) return 'not_very_effective';
+      return 'normal';
+    }
+    if (effectiveness === 'super' || effectiveness === 'super_effective') {
       return 'super_effective';
     }
-    if (effectiveness === 'not_very' || effectiveness === 'not_very_effective' || effectiveness < 1) {
+    if (effectiveness === 'not_very' || effectiveness === 'not_very_effective') {
       return 'not_very_effective';
     }
     return 'normal';
@@ -345,7 +404,7 @@ export class ArenaBattleManager {
     };
   }
 
-  private emitEvent(type: BattleEventType, data: any): void {
+  private emitEvent(type: BattleEventType, data: Record<string, unknown> | null): void {
     const event: BattleEvent = { type, data, timestamp: Date.now() };
     this.eventLog.push(event);
     this.eventListeners.forEach((listener) => listener(event));

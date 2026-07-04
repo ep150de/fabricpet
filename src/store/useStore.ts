@@ -6,6 +6,7 @@ import { create } from 'zustand';
 import type { Pet, PetRoster, WalletState, OrdinalInscription, HomeState, BattleState, AppView, DirectMessage, Conversation } from '../types';
 import type { NostrIdentity } from '../nostr/identity';
 import type { BehaviorAction } from '../engine/BehaviorTree';
+import type { UnlockedAchievement } from '../engine/AchievementEngine';
 
 interface AppState {
   // --- View ---
@@ -63,6 +64,12 @@ interface AppState {
   addMessage: (pubkey: string, message: DirectMessage) => void;
   markMessagesRead: (pubkey: string) => void;
   getUnreadCount: () => number;
+
+  // --- Achievements ---
+  unlockedAchievements: UnlockedAchievement[];
+  unlockAchievement: (achievement: UnlockedAchievement) => void;
+  pendingAchievementNotification: UnlockedAchievement | null;
+  setPendingAchievementNotification: (achievement: UnlockedAchievement | null) => void;
 }
 
 export const useStore = create<AppState>((set) => ({
@@ -236,4 +243,27 @@ export const useStore = create<AppState>((set) => ({
     });
     return count;
   },
+
+  // --- Achievements ---
+  unlockedAchievements: [],
+  unlockAchievement: (achievement) =>
+    set((state) => {
+      const exists = state.unlockedAchievements.find(
+        (a) => a.achievementId === achievement.achievementId
+      );
+      if (exists) {
+        return {
+          unlockedAchievements: state.unlockedAchievements.map((a) =>
+            a.achievementId === achievement.achievementId ? achievement : a
+          ),
+        };
+      }
+      return {
+        unlockedAchievements: [...state.unlockedAchievements, achievement],
+        pendingAchievementNotification: achievement,
+      };
+    }),
+  pendingAchievementNotification: null,
+  setPendingAchievementNotification: (achievement) =>
+    set({ pendingAchievementNotification: achievement }),
 }));

@@ -9,10 +9,9 @@
 // - Elemental effects
 // ============================================
 
-import { useState, useRef, useEffect, useCallback } from 'react';
-import type { BattleState, Move } from '../types';
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import type { BattleState } from '../types';
 import { getMove } from '../engine/MoveDatabase';
-import { TYPE_EFFECTIVENESS } from '../utils/constants';
 
 interface ARBattleVisualizerProps {
   battleState: BattleState | null;
@@ -21,7 +20,6 @@ interface ARBattleVisualizerProps {
 }
 
 export function ARBattleVisualizer({ battleState, onMoveSelect, isActive }: ARBattleVisualizerProps) {
-  const [selectedMove, setSelectedMove] = useState<string | null>(null);
   const [damageNumbers, setDamageNumbers] = useState<Array<{
     id: string;
     value: number;
@@ -29,7 +27,6 @@ export function ARBattleVisualizer({ battleState, onMoveSelect, isActive }: ARBa
     y: number;
     color: string;
   }>>([]);
-  const [turnLog, setTurnLog] = useState<string[]>([]);
   const [showMoveSelector, setShowMoveSelector] = useState(false);
   
   // Clear damage numbers after animation
@@ -42,19 +39,16 @@ export function ARBattleVisualizer({ battleState, onMoveSelect, isActive }: ARBa
     }
   }, [damageNumbers]);
 
-  // Update turn log when battle state changes
-  useEffect(() => {
-    if (battleState?.turns) {
-      const newLogs = battleState.turns.map((turn, i) => {
-        const move = getMove(turn.move);
-        return `Turn ${i + 1}: ${turn.attacker} used ${move?.name || turn.move}`;
-      });
-      setTurnLog(newLogs);
-    }
+  // Derive turn log from battle state
+  const turnLog = useMemo(() => {
+    if (!battleState?.turns) return [];
+    return battleState.turns.map((turn, i) => {
+      const move = getMove(turn.move);
+      return `Turn ${i + 1}: ${turn.attacker} used ${move?.name || turn.move}`;
+    });
   }, [battleState?.turns]);
 
   const handleMoveSelect = useCallback((moveId: string) => {
-    setSelectedMove(moveId);
     setShowMoveSelector(false);
     if (onMoveSelect) {
       onMoveSelect(moveId);
@@ -82,8 +76,6 @@ export function ARBattleVisualizer({ battleState, onMoveSelect, isActive }: ARBa
 
   const playerPet = battleState.pets[0];
   const opponentPet = battleState.pets[1];
-  // Player can always select moves while battle is active (opponent auto-responds)
-  const isPlayerTurn = battleState.status === 'active' && !battleState.winner;
 
   return (
     <div className="absolute inset-0 pointer-events-none" style={{ zIndex: 100 }}>

@@ -11,8 +11,9 @@ import { generateQRDataUrlAsync, parseQRCode, startQRScanner, isQRScanSupported 
 import { savePetState } from '../nostr/petStorage';
 import { NearbyPets } from './NearbyPets';
 import { BreedingMarketplace } from './BreedingMarketplace';
+import { AchievementGallery } from './AchievementGallery';
 
-type SocialTab = 'leaderboard' | 'visit' | 'nearby' | 'qr' | 'breeding';
+type SocialTab = 'leaderboard' | 'visit' | 'nearby' | 'qr' | 'breeding' | 'achievements';
 
 const ELEMENT_EMOJI: Record<string, string> = {
   fire: '🔥', water: '💧', earth: '🌿', air: '💨',
@@ -90,6 +91,16 @@ export function SocialView() {
         >
           💞 Breed
         </button>
+        <button
+          onClick={() => setTab('achievements')}
+          className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-all ${
+            tab === 'achievements'
+              ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/50'
+              : 'bg-[#1a1a2e] text-gray-500 border border-gray-800'
+          }`}
+        >
+          🏆 Awards
+        </button>
       </div>
 
       {tab === 'leaderboard' && <LeaderboardTab />}
@@ -97,6 +108,7 @@ export function SocialView() {
       {tab === 'nearby' && <NearbyPets />}
       {tab === 'qr' && <QRMeetTab />}
       {tab === 'breeding' && <BreedingMarketplace />}
+      {tab === 'achievements' && <AchievementGallery />}
     </div>
   );
 }

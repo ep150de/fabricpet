@@ -426,7 +426,7 @@ export class ArenaGenerator {
     group: THREE.Group,
     biome: BiomeDefinition,
     radius: number,
-    wallHeight: number
+    _wallHeight: number
   ): void {
     // Obsidian pillars
     for (let i = 0; i < 6; i++) {
@@ -452,7 +452,7 @@ export class ArenaGenerator {
     group: THREE.Group,
     biome: BiomeDefinition,
     radius: number,
-    wallHeight: number
+    _wallHeight: number
   ): void {
     // Coral formations
     for (let i = 0; i < 10; i++) {
@@ -480,7 +480,7 @@ export class ArenaGenerator {
     group: THREE.Group,
     biome: BiomeDefinition,
     radius: number,
-    wallHeight: number
+    _wallHeight: number
   ): void {
     // Crystal formations
     for (let i = 0; i < 8; i++) {
@@ -567,7 +567,7 @@ export class ArenaGenerator {
     group: THREE.Group,
     biome: BiomeDefinition,
     radius: number,
-    wallHeight: number
+    _wallHeight: number
   ): void {
     // Broken stone blocks
     for (let i = 0; i < 8; i++) {

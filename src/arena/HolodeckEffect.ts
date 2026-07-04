@@ -207,9 +207,9 @@ export class HolodeckEffect {
 
     this.geometry.grid.traverse((child) => {
       if (child instanceof THREE.Mesh || child instanceof THREE.Line) {
-        const mat = child.material as THREE.Material;
+        const mat = child.material as THREE.MeshBasicMaterial;
         if ('opacity' in mat) {
-          (mat as any).opacity = Math.min(1, (mat as any).opacity * shimmer);
+          mat.opacity = Math.min(1, mat.opacity * shimmer);
         }
       }
     });
@@ -244,7 +244,7 @@ export class HolodeckEffect {
         const material = child.material;
         if (material instanceof THREE.Material) {
           material.transparent = true;
-          (material as any).opacity = opacity;
+          (material as THREE.MeshBasicMaterial).opacity = opacity;
           material.needsUpdate = true;
         }
       }

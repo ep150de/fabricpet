@@ -5,7 +5,8 @@
     "chat": "Chat",
     "battle": "Battle",
     "social": "Social",
-    "wallet": "Wallet"
+    "wallet": "Wallet",
+    "multiplayer": "Multi"
   },
   "common": {
     "loading": "Loading...",

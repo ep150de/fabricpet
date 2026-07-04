@@ -8,7 +8,6 @@
 
 import * as THREE from 'three';
 import type { BattleTurnResult, ElementType, Vector3, CameraMode } from '../../types/arenaTypes';
-import type { BattleEvent } from './ArenaBattleManager';
 
 export interface VisualizationConfig {
   moveAnimationDurationMs: number;
@@ -30,9 +29,48 @@ const DEFAULT_CONFIG: VisualizationConfig = {
   damageNumberLifetime: 1.5,
 };
 
+export interface MoveAnimationData {
+  moveType: ElementType;
+  startPosition: Vector3;
+  endPosition: Vector3;
+}
+
+export interface HitAnimationData {
+  position: Vector3;
+  isCritical: boolean;
+}
+
+export interface StatusAnimationData {
+  position: Vector3;
+  statusType: string;
+}
+
+export interface FaintAnimationData {
+  position: Vector3;
+  petId: string;
+}
+
+export interface VictoryAnimationData {
+  particles: THREE.Points;
+}
+
+export interface DamageNumberData {
+  sprite: THREE.Sprite;
+  texture: THREE.Texture;
+  startY: number;
+}
+
+export type AnimationData =
+  | MoveAnimationData
+  | HitAnimationData
+  | StatusAnimationData
+  | FaintAnimationData
+  | VictoryAnimationData
+  | DamageNumberData;
+
 export interface AnimationRequest {
   type: 'move' | 'hit' | 'status' | 'faint' | 'victory' | 'damage_number';
-  data: any;
+  data: AnimationData;
   startTime: number;
   duration: number;
   isComplete: boolean;
@@ -153,7 +191,7 @@ export class BattleVisualizer {
   /**
    * Update active animations each frame
    */
-  update(delta: number): void {
+  update(_delta: number): void {
     const now = Date.now();
 
     for (const anim of this.activeAnimations) {
@@ -359,7 +397,7 @@ export class BattleVisualizer {
     (particles.material as THREE.Material).dispose();
   }
 
-  private animateStatusClear(position: Vector3, status: string): void {
+  private animateStatusClear(position: Vector3, _status: string): void {
     // Quick dissipation effect
     const particles = this.createParticleBurst(position, ['#ffffff'], 20, 1.0);
     this.scene.add(particles);
@@ -442,9 +480,10 @@ export class BattleVisualizer {
   }
 
   private updateDamageNumber(anim: AnimationRequest, progress: number): void {
-    const sprite = anim.data.sprite as THREE.Sprite;
+    const data = anim.data as DamageNumberData;
+    const sprite = data.sprite;
     sprite.position.y =
-      anim.data.startY + progress * this.config.damageNumberRiseSpeed;
+      data.startY + progress * this.config.damageNumberRiseSpeed;
     sprite.material.opacity = 1 - progress;
   }
 
@@ -452,7 +491,8 @@ export class BattleVisualizer {
     anim: AnimationRequest,
     progress: number
   ): void {
-    const particles = anim.data.particles as THREE.Points;
+    const data = anim.data as VictoryAnimationData;
+    const particles = data.particles;
     if (particles) {
       // Expand and fade
       particles.scale.setScalar(1 + progress * 2);
@@ -534,13 +574,15 @@ export class BattleVisualizer {
 
   private cleanupAnimation(anim: AnimationRequest): void {
     if (anim.type === 'damage_number') {
-      const sprite = anim.data.sprite as THREE.Sprite;
+      const data = anim.data as DamageNumberData;
+      const sprite = data.sprite;
       this.scene.remove(sprite);
       sprite.material.map?.dispose();
       sprite.material.dispose();
     }
     if (anim.type === 'victory') {
-      const particles = anim.data.particles as THREE.Points;
+      const data = anim.data as VictoryAnimationData;
+      const particles = data.particles;
       if (particles) {
         this.scene.remove(particles);
         particles.geometry.dispose();
