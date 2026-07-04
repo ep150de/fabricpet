@@ -11,6 +11,7 @@ const navItems: { view: AppView; emoji: string; key: string }[] = [
   { view: 'pet', emoji: '🐾', key: 'nav.pet' },
   { view: 'chat', emoji: '💬', key: 'nav.chat' },
   { view: 'battle', emoji: '⚔️', key: 'nav.battle' },
+  { view: 'spectator', emoji: '👁️', key: 'nav.spectator' },
   { view: 'social', emoji: '👥', key: 'nav.social' },
   { view: 'wallet', emoji: '💰', key: 'nav.wallet' },
   { view: 'multiplayer', emoji: '🔗', key: 'nav.multiplayer' },

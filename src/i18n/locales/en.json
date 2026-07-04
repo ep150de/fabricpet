@@ -6,7 +6,8 @@
     "battle": "Battle",
     "social": "Social",
     "wallet": "Wallet",
-    "multiplayer": "Multi"
+    "multiplayer": "Multi",
+    "spectator": "Spectate"
   },
   "common": {
     "loading": "Loading...",
@@ -151,5 +152,25 @@
     "unknown": "Unknown",
     "noParentData": "No parent data",
     "born": "Born"
+  },
+  "spectator": {
+    "title": "Spectate Battles",
+    "subtitle": "Watch live battles in real-time",
+    "spectating": "Spectating",
+    "watching": "watching",
+    "leave": "Leave",
+    "liveMoves": "Live Moves",
+    "waitingForMoves": "Waiting for moves...",
+    "battleLog": "Battle Log",
+    "noEvents": "No events yet",
+    "noActiveBattles": "No active battles right now",
+    "startBattle": "Start a battle to see it here!",
+    "spectate": "Spectate",
+    "arena": "Arena",
+    "rps": "RPS",
+    "joinedBattle": "Now spectating",
+    "failedToJoin": "Failed to join battle",
+    "leftBattle": "Left the battle",
+    "connectIdentity": "Connect your identity to spectate battles"
   }
 }
