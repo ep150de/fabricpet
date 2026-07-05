@@ -19,6 +19,7 @@ import { SocialView } from './components/SocialView';
 import { SetupScreen } from './components/SetupScreen';
 import { MultiplayerView } from './components/MultiplayerView';
 import { SpectatorView } from './components/SpectatorView';
+import { AccessoryShop } from './components/AccessoryShop';
 import { AchievementNotification } from './components/AchievementNotification';
 import { useAchievementTracker } from './hooks/useAchievementTracker';
 import { scheduleSceneSync } from './rp1/SceneSync';
@@ -323,6 +324,7 @@ export default function App() {
         {currentView === 'wallet' && <WalletView />}
         {currentView === 'multiplayer' && <MultiplayerView />}
         {currentView === 'spectator' && <SpectatorView />}
+        {currentView === 'accessories' && <AccessoryShop />}
       </main>
 
       {/* Bottom Navigation */}

@@ -143,6 +143,7 @@ export function createOffspring(parents: BreedingParents, name: string): Offspri
     moves: selectMovesFromParents(matriarch, patrilineal, offspringElement),
     battleRecord: { wins: 0, losses: 0, draws: 0 },
     avatarId: null,
+    accessories: [],
     createdAt: Date.now(),
     lastInteraction: Date.now(),
   };

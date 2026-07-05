@@ -45,8 +45,31 @@ export interface Pet {
   moves: string[];
   battleRecord: BattleRecord;
   avatarId: string | null;
+  accessories: EquippedAccessory[];
   createdAt: number;
   lastInteraction: number;
+}
+
+// --- Accessory Types ---
+
+export type AccessorySlot = 'head' | 'body' | 'back' | 'held';
+export type AccessoryRarity = 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary';
+
+export interface Accessory {
+  id: string;
+  name: string;
+  emoji: string;
+  slot: AccessorySlot;
+  rarity: AccessoryRarity;
+  color: string;
+  unlockLevel: number;
+  description: string;
+  statBonus?: Partial<BattleStats>;
+}
+
+export interface EquippedAccessory {
+  accessoryId: string;
+  slot: AccessorySlot;
 }
 
 // --- Multi-Pet Roster ---
@@ -210,7 +233,7 @@ export interface WalletState {
 
 // --- App State ---
 
-export type AppView = 'home' | 'pet' | 'battle' | 'arena' | 'social' | 'wallet' | 'chat' | 'ar' | 'avatars' | 'settings' | 'multiplayer' | 'spectator';
+export type AppView = 'home' | 'pet' | 'battle' | 'arena' | 'social' | 'wallet' | 'chat' | 'ar' | 'avatars' | 'settings' | 'multiplayer' | 'spectator' | 'accessories';
 
 // --- Breeding & Lineage Types ---
 

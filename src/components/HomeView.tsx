@@ -688,6 +688,73 @@ export function HomeView() {
         rightBlush.position.set(0.25, 0.78, 0.35);
         scene.add(rightBlush);
 
+        // --- Render equipped accessories ---
+        if (pet.accessories && pet.accessories.length > 0) {
+          const { getAccessoryById } = await import('../engine/AccessoryEngine');
+          
+          for (const equipped of pet.accessories) {
+            const accessory = getAccessoryById(equipped.accessoryId);
+            if (!accessory) continue;
+
+            const color = new THREE.Color(accessory.color);
+            
+            if (accessory.slot === 'head') {
+              // Head accessories - positioned on top of pet
+              const headGeo = new THREE.SphereGeometry(0.15, 16, 16);
+              const headMat = new THREE.MeshStandardMaterial({ 
+                color, 
+                roughness: 0.4, 
+                metalness: 0.2,
+                emissive: color,
+                emissiveIntensity: 0.2,
+              });
+              const headAccessory = new THREE.Mesh(headGeo, headMat);
+              headAccessory.position.set(0, 1.25, 0);
+              headAccessory.scale.set(1, 0.6, 1);
+              scene.add(headAccessory);
+            } else if (accessory.slot === 'body') {
+              // Body accessories - positioned around pet's middle
+              const bodyGeo = new THREE.TorusGeometry(0.5, 0.08, 8, 16);
+              const bodyMat = new THREE.MeshStandardMaterial({ 
+                color, 
+                roughness: 0.5,
+                emissive: color,
+                emissiveIntensity: 0.15,
+              });
+              const bodyAccessory = new THREE.Mesh(bodyGeo, bodyMat);
+              bodyAccessory.position.set(0, 0.8, 0);
+              bodyAccessory.rotation.x = Math.PI / 2;
+              scene.add(bodyAccessory);
+            } else if (accessory.slot === 'back') {
+              // Back accessories - positioned behind pet
+              const backGeo = new THREE.BoxGeometry(0.3, 0.4, 0.15);
+              const backMat = new THREE.MeshStandardMaterial({ 
+                color, 
+                roughness: 0.6,
+                emissive: color,
+                emissiveIntensity: 0.1,
+              });
+              const backAccessory = new THREE.Mesh(backGeo, backMat);
+              backAccessory.position.set(0, 0.9, -0.5);
+              scene.add(backAccessory);
+            } else if (accessory.slot === 'held') {
+              // Held accessories - positioned in front/side of pet
+              const heldGeo = new THREE.CylinderGeometry(0.05, 0.05, 0.4, 8);
+              const heldMat = new THREE.MeshStandardMaterial({ 
+                color, 
+                roughness: 0.3,
+                metalness: 0.4,
+                emissive: color,
+                emissiveIntensity: 0.25,
+              });
+              const heldAccessory = new THREE.Mesh(heldGeo, heldMat);
+              heldAccessory.position.set(0.5, 0.7, 0.2);
+              heldAccessory.rotation.z = -Math.PI / 4;
+              scene.add(heldAccessory);
+            }
+          }
+        }
+
         // --- Floating hearts/stars ---
         const particles: InstanceType<typeof THREE.Mesh>[] = [];
         const particleShapes = ['heart', 'star'];

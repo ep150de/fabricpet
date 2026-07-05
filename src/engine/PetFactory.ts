@@ -39,6 +39,7 @@ export function createNewPet(name: string, elementalType: ElementalType = 'neutr
     moves: getStarterMoves(elementalType),
     battleRecord: { wins: 0, losses: 0, draws: 0 },
     avatarId: null,
+    accessories: [],
     createdAt: Date.now(),
     lastInteraction: Date.now(),
   };

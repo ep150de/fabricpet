@@ -36,6 +36,7 @@ export function createNewPet(name: string, id?: string): Pet {
     moves: ['tackle', 'rest'],
     battleRecord: { wins: 0, losses: 0, draws: 0 },
     avatarId: null,
+    accessories: [],
     createdAt: now,
     lastInteraction: now,
   };
