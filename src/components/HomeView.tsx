@@ -13,7 +13,7 @@ import { generateSceneJSON } from '../rp1/SceneJSONGenerator';
 import { forceSyncScene } from '../rp1/SceneSync';
 import { fetchInscriptionContent, applyImageTextureToMesh, categorizeContentType, load3DModelFromContent } from '../avatar/OrdinalRenderer';
 import { fetchAvatarList, getAvatarById, loadVRMModel } from '../avatar/AvatarLoader';
-import { saveLocalPet } from '../store/localStorage';
+import { saveLocalPet } from '../store/indexedDBStorage';
 import { QRCodeGenerator } from './QRCodeGenerator';
 import { AvatarPicker } from './AvatarPicker';
 import type { OSAAvatar } from '../types';
@@ -525,8 +525,8 @@ export function HomeView() {
       // Update the pet in the store
       useStore.getState().setPet(updatedPet);
       
-      // Save to localStorage for persistence
-      saveLocalPet(updatedPet);
+      // Save to IndexedDB for persistence
+      saveLocalPet(updatedPet).catch(e => console.warn('[HomeView] Failed to save pet:', e));
       
       // Show success notification
       setNotification({ message: `Avatar set: ${avatar.name}`, emoji: '🎭' });

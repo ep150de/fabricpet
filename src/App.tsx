@@ -8,7 +8,8 @@ import { useStore } from './store/useStore';
 import { loadStoredIdentity, hasNostrExtension, connectWithExtension, generateNewIdentity } from './nostr/identity';
 import { loadPetState, savePetState } from './nostr/petStorage';
 import { decayNeeds } from './engine/NeedsSystem';
-import { saveLocalPet, loadLocalPet, saveLocalRoster, loadLocalRoster, saveLocalHome, loadLocalHome } from './store/localStorage';
+import { saveLocalPet, loadLocalPet, saveLocalRoster, loadLocalRoster, saveLocalHome, loadLocalHome } from './store/indexedDBStorage';
+import { migrateLocalStorageToIndexedDB } from './store/migrateToIndexedDB';
 import { Navigation } from './components/Navigation';
 import { PetView } from './components/PetView';
 import { BattleScreen } from './components/BattleScreen';
@@ -54,6 +55,9 @@ export default function App() {
     setLoading(true);
 
     try {
+      // Run migration from localStorage to IndexedDB (if needed)
+      await migrateLocalStorageToIndexedDB();
+
       // Try to load stored identity (async — decodes nsec for signing)
       let id = await loadStoredIdentity();
 
@@ -73,16 +77,16 @@ export default function App() {
 
       setIdentity(id);
 
-      // === LOAD PET: localStorage first (instant), then Nostr (cross-device) ===
+      // === LOAD PET: IndexedDB first (fast, reliable), then Nostr (cross-device) ===
       let bestPet: import('./types').Pet | null = null;
       let bestTimestamp = 0;
 
-      // 1. Try localStorage (fast, reliable, survives republish)
-      const local = loadLocalPet();
+      // 1. Try IndexedDB (fast, reliable, survives republish)
+      const local = await loadLocalPet();
       if (local) {
         bestPet = local.pet;
         bestTimestamp = local.timestamp;
-        console.log('[Init] Loaded pet from localStorage, saved:', new Date(bestTimestamp).toLocaleString());
+        console.log('[Init] Loaded pet from IndexedDB, saved:', new Date(bestTimestamp).toLocaleString());
       }
 
       // 2. Try Nostr relays (cross-device sync)
@@ -96,11 +100,11 @@ export default function App() {
               bestTimestamp = nostrTimestamp;
               console.log('[Init] Nostr pet is newer, using Nostr data');
             } else {
-              console.log('[Init] localStorage pet is newer, keeping local data');
+              console.log('[Init] IndexedDB pet is newer, keeping local data');
             }
           }
         } catch (e) {
-          console.warn('[Init] Nostr load failed, using localStorage:', e);
+          console.warn('[Init] Nostr load failed, using IndexedDB:', e);
         }
       }
 
@@ -109,11 +113,11 @@ export default function App() {
         const minutesElapsed = (Date.now() - bestPet.lastInteraction) / 60000;
         const decayedPet = decayNeeds(bestPet, Math.min(minutesElapsed, 480));
         setPet(decayedPet);
-        saveLocalPet(decayedPet); // Persist decayed state
+        await saveLocalPet(decayedPet); // Persist decayed state
       }
 
       // 4. Load roster (multi-pet support) — migrates single pet if needed
-      const localRoster = loadLocalRoster();
+      const localRoster = await loadLocalRoster();
       if (localRoster) {
         // Update max slots based on wallet (will be updated again when wallet connects)
         setRoster(localRoster.roster);
@@ -127,11 +131,11 @@ export default function App() {
         });
       }
 
-      // Load home state from localStorage
-      const localHome = loadLocalHome();
+      // Load home state from IndexedDB
+      const localHome = await loadLocalHome();
       if (localHome) {
         setHome(localHome.home);
-        console.log('[Init] Loaded home state from localStorage');
+        console.log('[Init] Loaded home state from IndexedDB');
       }
     } catch (error) {
       console.error('Initialization error:', error);
@@ -165,23 +169,23 @@ export default function App() {
     return () => stopRP1Listener();
   }, [identity]);
 
-  // Save to localStorage on every pet change + save roster
+  // Save to IndexedDB on every pet change + save roster
   useEffect(() => {
     if (pet) {
-      saveLocalPet(pet);
+      saveLocalPet(pet).catch(e => console.warn('[App] Failed to save pet:', e));
     }
   }, [pet]);
 
   // Save roster whenever it changes
   useEffect(() => {
     if (roster.pets.length > 0) {
-      saveLocalRoster(roster);
+      saveLocalRoster(roster).catch(e => console.warn('[App] Failed to save roster:', e));
     }
   }, [roster]);
 
   // Save home state whenever it changes
   useEffect(() => {
-    saveLocalHome(home);
+    saveLocalHome(home).catch(e => console.warn('[App] Failed to save home:', e));
   }, [home]);
 
   // Auto-unlock themes when pet levels up
@@ -217,7 +221,7 @@ export default function App() {
     }
   }, [wallet.inscriptions.length, wallet.connected]);
 
-  // Periodic needs decay (every 30 seconds) + save to localStorage
+  // Periodic needs decay (every 30 seconds) + save to IndexedDB
   // Uses functional update to avoid stale closure overwriting battle records
   const { updatePetFn } = useStore();
   useEffect(() => {
@@ -226,7 +230,7 @@ export default function App() {
     const interval = setInterval(() => {
       updatePetFn((prev: import('./types').Pet) => {
         const updated = decayNeeds(prev, 0.5); // 0.5 minutes = 30 seconds
-        saveLocalPet(updated);
+        saveLocalPet(updated).catch(e => console.warn('[App] Failed to save decayed pet:', e));
         return updated;
       });
     }, 30000);

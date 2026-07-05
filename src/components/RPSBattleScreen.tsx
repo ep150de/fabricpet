@@ -10,7 +10,7 @@ import { useStore } from '../store/useStore';
 import { getStageEmoji } from '../engine/PetStateMachine';
 import { addXP } from '../engine/PetStateMachine';
 import { savePetState } from '../nostr/petStorage';
-import { saveLocalPet } from '../store/localStorage';
+import { saveLocalPet } from '../store/indexedDBStorage';
 import { commitRPSMove, publishRPSResult } from '../nostr/battleRelay';
 import {
   createRPSBattle,
@@ -150,7 +150,7 @@ export function RPSBattleScreen({ onBack }: RPSBattleScreenProps) {
         },
       };
       setPet(newPet);
-      saveLocalPet(newPet);
+      saveLocalPet(newPet).catch(e => console.warn('[RPS] Failed to save pet:', e));
       setBattleLog(prev => [...prev, `+${xp} XP gained!`]);
 
       // Publish result to Nostr
