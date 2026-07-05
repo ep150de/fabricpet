@@ -22,8 +22,14 @@ declare global {
 export interface NostrIdentity {
   pubkey: string;
   npub: string;
-  secretKey: Uint8Array | null; // null if using NIP-07 extension
+  secretKey: Uint8Array | null; // null if using NIP-07 extension or NIP-46
   isExtension: boolean;
+  isRemoteSigner?: boolean; // true if using NIP-46 remote signer
+  remoteSignerConfig?: {
+    remotePubkey: string;
+    relayUrl: string;
+    clientSecretKey: Uint8Array;
+  };
 }
 
 // --- Web Crypto helpers for nsec encryption ---
@@ -138,13 +144,21 @@ export async function generateNewIdentity(): Promise<NostrIdentity> {
 export function clearIdentity(): void {
   localStorage.removeItem('fabricpet_nsec');
   localStorage.removeItem('fabricpet_pubkey');
+  localStorage.removeItem('fabricpet_remote_signer');
 }
 
 /**
  * Load existing identity from localStorage.
  * Now async to properly decode the stored nsec key for signing.
+ * Checks for remote signer first, then local key, then extension.
  */
 export async function loadStoredIdentity(): Promise<NostrIdentity | null> {
+  // Try remote signer first
+  const remoteIdentity = await loadRemoteSignerIdentity();
+  if (remoteIdentity) {
+    return remoteIdentity;
+  }
+
   try {
     const pubkey = localStorage.getItem('fabricpet_pubkey');
     const nsecStr = localStorage.getItem('fabricpet_nsec');
@@ -208,20 +222,133 @@ async function decodeNsecAsync(nsec: string): Promise<Uint8Array | null> {
 }
 
 /**
- * Sign a Nostr event using either NIP-07 extension or local key.
+ * Sign a Nostr event using either NIP-07 extension, local key, or NIP-46 remote signer.
  */
 export async function signEvent(
   identity: NostrIdentity,
   event: Record<string, unknown>
 ): Promise<Record<string, unknown>> {
+  // NIP-46 remote signer
+  if (identity.isRemoteSigner && identity.remoteSignerConfig) {
+    const { NIP46Client } = await import('./nip46');
+    const client = new NIP46Client(
+      {
+        remotePubkey: identity.remoteSignerConfig.remotePubkey,
+        relayUrl: identity.remoteSignerConfig.relayUrl,
+        secret: '', // Not needed for signing
+      },
+      identity.remoteSignerConfig.clientSecretKey
+    );
+    try {
+      const signed = await client.signEvent(event as any);
+      return signed as unknown as Record<string, unknown>;
+    } finally {
+      client.close();
+    }
+  }
+
+  // NIP-07 extension
   if (identity.isExtension && window.nostr) {
     return await window.nostr.signEvent(event);
   }
 
+  // Local secret key
   if (identity.secretKey) {
     const { finalizeEvent } = await import('nostr-tools/pure');
     return finalizeEvent(event as Parameters<typeof finalizeEvent>[0], identity.secretKey) as unknown as Record<string, unknown>;
   }
 
   throw new Error('No signing method available');
+}
+
+/**
+ * Connect to a NIP-46 remote signer using a bunker:// URL
+ */
+export async function connectRemoteSigner(bunkerUrl: string): Promise<NostrIdentity> {
+  const { parseBunkerUrl, NIP46Client, generateClientKeypair } = await import('./nip46');
+  
+  const signerConfig = parseBunkerUrl(bunkerUrl);
+  if (!signerConfig) {
+    throw new Error('Invalid bunker URL format');
+  }
+
+  // Generate client keypair
+  const clientKeypair = generateClientKeypair();
+  
+  // Create client and connect
+  const client = new NIP46Client(signerConfig, clientKeypair.secretKey);
+  const connected = await client.connect();
+  
+  if (!connected) {
+    throw new Error('Failed to connect to remote signer');
+  }
+
+  // Get the remote pubkey
+  const remotePubkey = await client.getPublicKey();
+  const npub = npubEncode(remotePubkey);
+
+  // Store the remote signer config
+  const configToStore = {
+    remotePubkey: signerConfig.remotePubkey,
+    relayUrl: signerConfig.relayUrl,
+    secret: signerConfig.secret,
+    clientSecretKey: Array.from(clientKeypair.secretKey),
+  };
+  localStorage.setItem('fabricpet_remote_signer', JSON.stringify(configToStore));
+  localStorage.setItem('fabricpet_pubkey', remotePubkey);
+
+  client.close();
+
+  return {
+    pubkey: remotePubkey,
+    npub,
+    secretKey: null,
+    isExtension: false,
+    isRemoteSigner: true,
+    remoteSignerConfig: {
+      remotePubkey: signerConfig.remotePubkey,
+      relayUrl: signerConfig.relayUrl,
+      clientSecretKey: clientKeypair.secretKey,
+    },
+  };
+}
+
+/**
+ * Disconnect from NIP-46 remote signer
+ */
+export function disconnectRemoteSigner(): void {
+  localStorage.removeItem('fabricpet_remote_signer');
+  localStorage.removeItem('fabricpet_pubkey');
+  localStorage.removeItem('fabricpet_nsec');
+}
+
+/**
+ * Load remote signer identity from localStorage
+ */
+export async function loadRemoteSignerIdentity(): Promise<NostrIdentity | null> {
+  try {
+    const configStr = localStorage.getItem('fabricpet_remote_signer');
+    if (!configStr) return null;
+
+    const config = JSON.parse(configStr);
+    const clientSecretKey = new Uint8Array(config.clientSecretKey);
+    const pubkey = config.remotePubkey;
+    const npub = npubEncode(pubkey);
+
+    return {
+      pubkey,
+      npub,
+      secretKey: null,
+      isExtension: false,
+      isRemoteSigner: true,
+      remoteSignerConfig: {
+        remotePubkey: config.remotePubkey,
+        relayUrl: config.relayUrl,
+        clientSecretKey,
+      },
+    };
+  } catch (error) {
+    console.error('[Identity] Failed to load remote signer:', error);
+    return null;
+  }
 }

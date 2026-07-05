@@ -14,13 +14,16 @@ import {
 } from '../wallet/WalletConnect';
 import { calculateElementalType, applyTraitBonuses } from '../engine/PetStateMachine';
 import { savePetState } from '../nostr/petStorage';
+import { connectRemoteSigner, disconnectRemoteSigner } from '../nostr/identity';
 import type { OrdinalInscription } from '../types';
 
 export function WalletView() {
-  const { pet, setPet, wallet, setWallet, setInscriptions, identity, setNotification } = useStore();
+  const { pet, setPet, wallet, setWallet, setInscriptions, identity, setIdentity, setNotification } = useStore();
   const [isConnecting, setIsConnecting] = useState(false);
   const [isLoadingInscriptions, setIsLoadingInscriptions] = useState(false);
   const [selectedInscription, setSelectedInscription] = useState<OrdinalInscription | null>(null);
+  const [bunkerUrl, setBunkerUrl] = useState('');
+  const [isConnectingRemote, setIsConnectingRemote] = useState(false);
 
   const handleConnectUnisat = async () => {
     setIsConnecting(true);
@@ -58,6 +61,31 @@ export function WalletView() {
       setIsConnecting(false);
       setIsLoadingInscriptions(false);
     }
+  };
+
+  const handleConnectRemoteSigner = async () => {
+    if (!bunkerUrl.trim()) {
+      setNotification({ message: 'Please enter a bunker:// URL', emoji: '⚠️' });
+      return;
+    }
+
+    setIsConnectingRemote(true);
+    try {
+      const newIdentity = await connectRemoteSigner(bunkerUrl.trim());
+      setIdentity(newIdentity);
+      setBunkerUrl('');
+      setNotification({ message: 'Remote signer connected!', emoji: '🔐' });
+    } catch (error) {
+      setNotification({ message: `Failed to connect: ${error}`, emoji: '❌' });
+    } finally {
+      setIsConnectingRemote(false);
+    }
+  };
+
+  const handleDisconnectRemoteSigner = () => {
+    disconnectRemoteSigner();
+    setIdentity(null);
+    setNotification({ message: 'Remote signer disconnected', emoji: '👋' });
   };
 
   const handleEquipOrdinal = async (inscription: OrdinalInscription) => {
@@ -99,6 +127,69 @@ export function WalletView() {
 
   return (
     <div className="p-4 max-w-lg mx-auto">
+      {/* NIP-46 Remote Signer Section */}
+      <div className="mb-6">
+        <div className="text-center mb-4">
+          <h2 className="text-2xl font-bold text-white">🔐 Nostr Identity</h2>
+          <p className="text-gray-400 mt-1">Connect a remote signer for secure key management</p>
+        </div>
+
+        {identity?.isRemoteSigner ? (
+          <div className="bg-[#1a1a2e] rounded-xl p-4 border border-green-500/30 mb-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-sm font-semibold text-green-400">
+                  ✅ Remote Signer Connected
+                </div>
+                <div className="text-xs text-gray-500 font-mono mt-1">
+                  {identity.npub.slice(0, 16)}...{identity.npub.slice(-8)}
+                </div>
+              </div>
+              <button
+                onClick={handleDisconnectRemoteSigner}
+                className="text-xs text-gray-500 hover:text-red-400"
+              >
+                Disconnect
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="bg-[#1a1a2e] rounded-xl p-4 border border-gray-800 mb-4">
+            <h3 className="text-sm font-semibold text-gray-300 mb-3">Connect Remote Signer (NIP-46)</h3>
+            <p className="text-xs text-gray-500 mb-3">
+              Use a hardware wallet or mobile app to sign events securely without storing keys locally.
+            </p>
+            <input
+              type="text"
+              value={bunkerUrl}
+              onChange={(e) => setBunkerUrl(e.target.value)}
+              placeholder="bunker://pubkey?relay=wss://...&secret=..."
+              className="w-full bg-[#0f0f23] border border-gray-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 mb-3 font-mono"
+            />
+            <button
+              onClick={handleConnectRemoteSigner}
+              disabled={isConnectingRemote || !bunkerUrl.trim()}
+              className={`w-full font-semibold py-2 rounded-lg text-sm transition-all ${
+                isConnectingRemote || !bunkerUrl.trim()
+                  ? 'bg-gray-700 text-gray-400 cursor-not-allowed'
+                  : 'bg-gradient-to-r from-green-500 to-teal-500 text-white hover:from-green-600 hover:to-teal-600'
+              }`}
+            >
+              {isConnectingRemote ? 'Connecting...' : '🔐 Connect Remote Signer'}
+            </button>
+            <div className="mt-3 text-xs text-gray-600">
+              <p className="mb-1">Supported signers:</p>
+              <ul className="list-disc list-inside space-y-0.5 text-gray-500">
+                <li>nsec.app (Amber)</li>
+                <li>Nostore</li>
+                <li>Other NIP-46 compatible signers</li>
+              </ul>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Bitcoin Wallet Section */}
       <div className="text-center mb-6">
         <h2 className="text-2xl font-bold text-white">💰 Bitcoin Wallet</h2>
         <p className="text-gray-400 mt-1">Connect your wallet to equip Ordinal skins</p>
