@@ -72,7 +72,7 @@ export function AccessoryShop() {
   ];
 
   return (
-    <div className="p-4 max-w-lg mx-auto">
+    <div className="p-4 max-w-lg mx-auto bg-[#0a0a0a] min-h-screen">
       <div className="text-center mb-4">
         <h2 className="text-2xl font-bold text-white">🎨 Accessory Shop</h2>
         <p className="text-gray-400 text-sm mt-1">
