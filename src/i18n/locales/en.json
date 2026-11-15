@@ -8,7 +8,8 @@
     "wallet": "Wallet",
     "multiplayer": "Multi",
     "spectator": "Spectate",
-    "accessories": "Style"
+    "accessories": "Style",
+    "trade": "Trade"
   },
   "common": {
     "loading": "Loading...",

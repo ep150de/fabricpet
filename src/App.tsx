@@ -20,6 +20,7 @@ import { SetupScreen } from './components/SetupScreen';
 import { MultiplayerView } from './components/MultiplayerView';
 import { SpectatorView } from './components/SpectatorView';
 import { AccessoryShop } from './components/AccessoryShop';
+import { TradeView } from './components/TradeView';
 import { AchievementNotification } from './components/AchievementNotification';
 import { useAchievementTracker } from './hooks/useAchievementTracker';
 import { TutorialOverlay, isTutorialCompleted } from './components/TutorialOverlay';
@@ -343,6 +344,7 @@ export default function App() {
         {currentView === 'multiplayer' && <MultiplayerView />}
         {currentView === 'spectator' && <SpectatorView />}
         {currentView === 'accessories' && <AccessoryShop />}
+        {currentView === 'trade' && <TradeView />}
       </main>
 
       {/* Bottom Navigation */}

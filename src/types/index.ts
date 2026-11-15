@@ -233,7 +233,7 @@ export interface WalletState {
 
 // --- App State ---
 
-export type AppView = 'home' | 'pet' | 'battle' | 'arena' | 'social' | 'wallet' | 'chat' | 'ar' | 'avatars' | 'settings' | 'multiplayer' | 'spectator' | 'accessories';
+export type AppView = 'home' | 'pet' | 'battle' | 'arena' | 'social' | 'wallet' | 'chat' | 'ar' | 'avatars' | 'settings' | 'multiplayer' | 'spectator' | 'accessories' | 'trade';
 
 // --- Breeding & Lineage Types ---
 

@@ -34,6 +34,10 @@ export const NOSTR_D_TAGS = {
   BREEDING_OFFER: 'fabricpet:v1:breeding-offer',
   BREEDING_REQUEST: 'fabricpet:v1:breeding-request',
   
+  // Trading
+  TRADE_OFFER: 'fabricpet:v1:trade-offer',
+  TRADE_RESPONSE: 'fabricpet:v1:trade-response',
+  
   // Legacy d-tags for backward compatibility (read-only)
   LEGACY_PREFIXES: [
     'com.fabricpet.pet.state',
