@@ -218,11 +218,96 @@ body {
 .animate-slide-down { animation: slide-down 0.3s ease-out; }
 .animate-slide-up { animation: slide-up 0.3s ease-out; }
 
+/* ============================================
+   Design System — FabricPet UI Tokens
+   ============================================ */
+
+:root {
+  /* Colors */
+  --color-bg-primary: #0a0a0a;
+  --color-bg-secondary: #0d0d0d;
+  --color-bg-tertiary: #1a1a2e;
+  --color-bg-card: #12122a;
+  --color-border: #00ffff33;
+  --color-border-subtle: #1a1a2e;
+  
+  /* Text */
+  --color-text-primary: #ffffff;
+  --color-text-secondary: #9ca3af;
+  --color-text-tertiary: #6b7280;
+  --color-text-accent: #00ffff;
+  
+  /* Accent */
+  --color-accent-primary: #00ffff;
+  --color-accent-secondary: #00cccc;
+  --color-accent-tertiary: #008888;
+  
+  /* Status */
+  --color-success: #10b981;
+  --color-warning: #f59e0b;
+  --color-error: #ef4444;
+  --color-info: #3b82f6;
+  
+  /* Spacing */
+  --spacing-xs: 0.25rem;
+  --spacing-sm: 0.5rem;
+  --spacing-md: 1rem;
+  --spacing-lg: 1.5rem;
+  --spacing-xl: 2rem;
+  
+  /* Border Radius */
+  --radius-sm: 0.5rem;
+  --radius-md: 0.75rem;
+  --radius-lg: 1rem;
+  --radius-xl: 1.5rem;
+  --radius-full: 9999px;
+  
+  /* Shadows */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.5);
+  --shadow-glow: 0 0 20px rgba(0, 255, 255, 0.15);
+  
+  /* Transitions */
+  --transition-fast: 150ms ease;
+  --transition-base: 250ms ease;
+  --transition-slow: 350ms ease;
+  
+  /* Typography */
+  --font-mono: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+  --font-sans: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
 /* CRT screen curvature effect */
 .crt-effect {
   border-radius: 20px;
   overflow: hidden;
 }
+
+/* Utility classes using design tokens */
+.bg-fabric-primary { background-color: var(--color-bg-primary); }
+.bg-fabric-secondary { background-color: var(--color-bg-secondary); }
+.bg-fabric-tertiary { background-color: var(--color-bg-tertiary); }
+.bg-fabric-card { background-color: var(--color-bg-card); }
+
+.text-fabric-primary { color: var(--color-text-primary); }
+.text-fabric-secondary { color: var(--color-text-secondary); }
+.text-fabric-tertiary { color: var(--color-text-tertiary); }
+.text-fabric-accent { color: var(--color-accent-primary); }
+
+.border-fabric { border-color: var(--color-border); }
+.border-fabric-subtle { border-color: var(--color-border-subtle); }
+
+.shadow-fabric-glow { box-shadow: var(--shadow-glow); }
+
+.rounded-fabric-sm { border-radius: var(--radius-sm); }
+.rounded-fabric-md { border-radius: var(--radius-md); }
+.rounded-fabric-lg { border-radius: var(--radius-lg); }
+.rounded-fabric-xl { border-radius: var(--radius-xl); }
+
+.transition-fabric { transition: var(--transition-base); }
+.transition-fabric-fast { transition: var(--transition-fast); }
+.transition-fabric-slow { transition: var(--transition-slow); }
 
 /* Phosphor glow text */
 .phosphor-glow {
