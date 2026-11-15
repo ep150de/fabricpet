@@ -284,6 +284,59 @@ body {
   overflow: hidden;
 }
 
+/* ============================================
+   Mobile Responsiveness Improvements
+   ============================================ */
+
+/* Better touch targets for mobile */
+@media (max-width: 640px) {
+  /* Minimum touch target size (44px) */
+  button, a, [role="button"] {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  
+  /* Larger tap areas for navigation */
+  nav button {
+    min-width: 56px;
+    padding: 0.5rem 0.75rem;
+  }
+  
+  /* Better spacing for cards on mobile */
+  .mobile-card {
+    padding: 0.75rem;
+    margin-bottom: 0.5rem;
+  }
+  
+  /* Larger text for readability */
+  .mobile-text {
+    font-size: 0.875rem;
+    line-height: 1.5;
+  }
+  
+  /* Better input sizing */
+  input, select, textarea {
+    font-size: 16px; /* Prevents iOS zoom */
+    padding: 0.75rem;
+  }
+}
+
+/* Safe area insets for notched devices */
+@supports (padding: env(safe-area-inset-top)) {
+  .safe-top {
+    padding-top: env(safe-area-inset-top);
+  }
+  .safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .safe-left {
+    padding-left: env(safe-area-inset-left);
+  }
+  .safe-right {
+    padding-right: env(safe-area-inset-right);
+  }
+}
+
 /* Utility classes using design tokens */
 .bg-fabric-primary { background-color: var(--color-bg-primary); }
 .bg-fabric-secondary { background-color: var(--color-bg-secondary); }

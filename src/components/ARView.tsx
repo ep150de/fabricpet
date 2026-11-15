@@ -48,6 +48,8 @@ export function ARView() {
   // Battle state
   const [battleActive, setBattleActive] = useState(false);
   const [battleState, setBattleState] = useState<any>(null);
+  const [currentGesture, setCurrentGesture] = useState<GestureType>('none');
+  const [gestureFeedback, setGestureFeedback] = useState<string | null>(null);
 
   // Handle move selection in battle mode
   const handleMoveSelect = useCallback((moveId: string) => {
@@ -417,6 +419,8 @@ export function ARView() {
                   reactionEndTime = now + petReaction.duration;
                   
                   console.log('[XR] Gesture detected:', gesture, 'Reaction:', petReaction.animation);
+                   setGestureFeedback(gesture);
+                   setTimeout(() => setGestureFeedback(null), 2000);
                   
                   // Handle ball throw (pinch gesture releases ball)
                   if (gesture === 'pinch' && !ballInFlight) {
@@ -1435,6 +1439,14 @@ export function ARView() {
                 <p className="text-xs text-gray-400 mt-1">
                   {pet.name} is floating in your space. Look around!
                 </p>
+                
+                {/* Gesture Feedback */}
+                {gestureFeedback && (
+                  <div className="mt-3 text-3xl animate-bounce-pet">
+                    {gestureFeedback}
+                  </div>
+                )}
+                
                 <button
                   onClick={stopWebXR}
                   className="mt-3 bg-red-500/80 hover:bg-red-500 text-white text-sm font-bold px-4 py-2 rounded-lg transition-all"
