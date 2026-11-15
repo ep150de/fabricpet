@@ -23,6 +23,7 @@ import { AccessoryShop } from './components/AccessoryShop';
 import { TradeView } from './components/TradeView';
 import { PetCustomizer } from './components/PetCustomizer';
 import { AchievementNotification } from './components/AchievementNotification';
+import { OfflineIndicator } from './components/OfflineIndicator';
 import { useAchievementTracker } from './hooks/useAchievementTracker';
 import { TutorialOverlay, isTutorialCompleted } from './components/TutorialOverlay';
 import { scheduleSceneSync } from './rp1/SceneSync';
@@ -328,6 +329,7 @@ export default function App() {
       {/* Notification */}
       {notification && <Notification message={notification.message} emoji={notification.emoji} />}
       <AchievementNotification />
+      <OfflineIndicator />
       {showTutorial && (
         <TutorialOverlay onComplete={() => setShowTutorial(false)} />
       )}
