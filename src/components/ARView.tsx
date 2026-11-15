@@ -382,8 +382,14 @@ export function ARView() {
                   .normalize();
                 
                 // Smoothly rotate pet to face user
-                const targetAngle = Math.atan2(toHead.x, toHead.z);
-                petMesh.rotation.y += (targetAngle - petMesh.rotation.y) * 0.05;
+                // three.js default forward is -Z, so to face the user (toHead) we
+                // need an extra PI offset: θ = atan2(-toHead.x, -toHead.z)
+                const targetAngle = Math.atan2(-toHead.x, -toHead.z);
+                // Shortest angular path to avoid long spins after reactions
+                let diff = targetAngle - petMesh.rotation.y;
+                while (diff > Math.PI) diff -= 2 * Math.PI;
+                while (diff < -Math.PI) diff += 2 * Math.PI;
+                petMesh.rotation.y += diff * 0.05;
               }
             }
           }
