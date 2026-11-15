@@ -2,7 +2,7 @@
 // FabricPet — Main Application
 // ============================================
 
-import { useEffect, useCallback, lazy, Suspense } from 'react';
+import { useState, useEffect, useCallback, lazy, Suspense } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useStore } from './store/useStore';
 import { loadStoredIdentity, hasNostrExtension, connectWithExtension, generateNewIdentity } from './nostr/identity';
@@ -22,6 +22,7 @@ import { SpectatorView } from './components/SpectatorView';
 import { AccessoryShop } from './components/AccessoryShop';
 import { AchievementNotification } from './components/AchievementNotification';
 import { useAchievementTracker } from './hooks/useAchievementTracker';
+import { TutorialOverlay, isTutorialCompleted } from './components/TutorialOverlay';
 import { scheduleSceneSync } from './rp1/SceneSync';
 import { parseDeepLink, clearDeepLinkParams } from './rp1/DeepLinkHandler';
 import { startRP1Listener, stopRP1Listener } from './rp1/RP1Listener';
@@ -50,6 +51,20 @@ export default function App() {
 
   // Track achievements
   useAchievementTracker();
+
+  // Tutorial state
+  const [showTutorial, setShowTutorial] = useState(false);
+
+  // Show tutorial for new users (after first pet creation)
+  useEffect(() => {
+    if (pet && !isTutorialCompleted() && !isLoading) {
+      // Small delay to let the app render first
+      const timer = setTimeout(() => {
+        setShowTutorial(true);
+      }, 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [pet, isLoading]);
 
   // Initialize identity and load pet state
   const initialize = useCallback(async () => {
@@ -311,6 +326,9 @@ export default function App() {
       {/* Notification */}
       {notification && <Notification message={notification.message} emoji={notification.emoji} />}
       <AchievementNotification />
+      {showTutorial && (
+        <TutorialOverlay onComplete={() => setShowTutorial(false)} />
+      )}
 
       {/* Main Content */}
       <main className="flex-1 overflow-y-auto pb-28" style={{ paddingBottom: 'max(7rem, calc(5rem + env(safe-area-inset-bottom, 0px)))' }}>
