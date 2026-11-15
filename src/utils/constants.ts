@@ -62,6 +62,11 @@ export const RP1_CONFIG = {
   rad: 6371000,
   msfServiceUrl: 'https://mvserver-production-4e6c.up.railway.app',
   petsPortalUrl: 'https://pets.bitcoinlavalamps.com',
+  // Rubidium/Sneeze framework support
+  rubidiumUrl: 'https://rubidium.rp1.com',
+  sneezeVersion: '2.0',
+  supportsSceneAssemblerV2: true,
+  supportsMVMFv2: true,
 };
 
 // Pet evolution level thresholds
