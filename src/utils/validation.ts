@@ -9,11 +9,15 @@
 export function sanitizeInput(input: string): string {
   if (!input) return '';
   
-  // Remove HTML tags
-  let sanitized = input.replace(/<[^>]*>/g, '');
+  // Remove HTML tags (including script tags with content)
+  let sanitized = input.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
+  sanitized = sanitized.replace(/<[^>]*>/g, '');
   
   // Remove potentially dangerous characters
   sanitized = sanitized.replace(/[<>\"'`]/g, '');
+  
+  // Normalize multiple spaces to single space
+  sanitized = sanitized.replace(/\s+/g, ' ');
   
   // Trim whitespace
   sanitized = sanitized.trim();
