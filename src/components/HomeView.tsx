@@ -16,6 +16,7 @@ import { fetchAvatarList, getAvatarById, loadVRMModel } from '../avatar/AvatarLo
 import { saveLocalPet } from '../store/indexedDBStorage';
 import { QRCodeGenerator } from './QRCodeGenerator';
 import { AvatarPicker } from './AvatarPicker';
+import { DailyChallengePanel } from './DailyChallengePanel';
 import type { OSAAvatar } from '../types';
 
 type HomeTheme = {
@@ -886,6 +887,11 @@ export function HomeView() {
             🎮 3D Home
           </div>
         </div>
+      </div>
+
+      {/* Daily Challenges */}
+      <div className="mb-4">
+        <DailyChallengePanel />
       </div>
 
       {/* 🌐 Enter RP1 World — Big CTA */}
