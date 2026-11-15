@@ -21,6 +21,7 @@ import { MultiplayerView } from './components/MultiplayerView';
 import { SpectatorView } from './components/SpectatorView';
 import { AccessoryShop } from './components/AccessoryShop';
 import { TradeView } from './components/TradeView';
+import { PetCustomizer } from './components/PetCustomizer';
 import { AchievementNotification } from './components/AchievementNotification';
 import { useAchievementTracker } from './hooks/useAchievementTracker';
 import { TutorialOverlay, isTutorialCompleted } from './components/TutorialOverlay';
@@ -345,6 +346,7 @@ export default function App() {
         {currentView === 'spectator' && <SpectatorView />}
         {currentView === 'accessories' && <AccessoryShop />}
         {currentView === 'trade' && <TradeView />}
+        {currentView === 'pet-customizer' && <PetCustomizer />}
       </main>
 
       {/* Bottom Navigation */}

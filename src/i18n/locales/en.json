@@ -9,7 +9,8 @@
     "multiplayer": "Multi",
     "spectator": "Spectate",
     "accessories": "Style",
-    "trade": "Trade"
+    "trade": "Trade",
+    "customizer": "Customize"
   },
   "common": {
     "loading": "Loading...",

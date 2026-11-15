@@ -46,6 +46,8 @@ export interface Pet {
   battleRecord: BattleRecord;
   avatarId: string | null;
   accessories: EquippedAccessory[];
+  customColor?: string;
+  customPattern?: string;
   createdAt: number;
   lastInteraction: number;
 }
@@ -233,7 +235,7 @@ export interface WalletState {
 
 // --- App State ---
 
-export type AppView = 'home' | 'pet' | 'battle' | 'arena' | 'social' | 'wallet' | 'chat' | 'ar' | 'avatars' | 'settings' | 'multiplayer' | 'spectator' | 'accessories' | 'trade';
+export type AppView = 'home' | 'pet' | 'battle' | 'arena' | 'social' | 'wallet' | 'chat' | 'ar' | 'avatars' | 'settings' | 'multiplayer' | 'spectator' | 'accessories' | 'trade' | 'pet-customizer';
 
 // --- Breeding & Lineage Types ---
 

@@ -17,6 +17,7 @@ interface MoreMenuItem {
 const moreMenuItems: MoreMenuItem[] = [
   { view: 'wallet', emoji: '💰', key: 'nav.wallet', description: 'Bitcoin wallet & ordinals' },
   { view: 'accessories', emoji: '🎨', key: 'nav.accessories', description: 'Pet cosmetics & styles' },
+  { view: 'pet-customizer', emoji: '🖌️', key: 'nav.customizer', description: 'Customize pet colors & patterns' },
   { view: 'trade', emoji: '🤝', key: 'nav.trade', description: 'Trade pets with players' },
   { view: 'multiplayer', emoji: '🔗', key: 'nav.multiplayer', description: 'WebRTC peer connections' },
   { view: 'spectator', emoji: '👁️', key: 'nav.spectator', description: 'Watch live battles' },
