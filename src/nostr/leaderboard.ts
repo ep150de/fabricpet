@@ -4,6 +4,7 @@
 
 import { getPool, getRelays } from './relayManager';
 import { NOSTR_KIND_APP_DATA, NOSTR_D_TAGS } from '../utils/constants';
+import { verifyEvent } from './nostrUtils';
 
 export interface LeaderboardEntry {
   pubkey: string;
@@ -108,10 +109,17 @@ function finalizeEntry(entry: LeaderboardEntry): LeaderboardEntry {
  * Try to parse a pet from an event and add it to the entries map.
  * Returns true if a valid pet was found.
  */
-function tryParseEvent(
-  event: { pubkey: string; content: string; created_at: number },
+async function tryParseEvent(
+  event: { pubkey: string; content: string; created_at: number; sig?: string; id?: string },
   entries: Map<string, LeaderboardEntry>
-): boolean {
+): Promise<boolean> {
+  // Verify event signature before trusting content
+  const isValid = await verifyEvent(event as any);
+  if (!isValid) {
+    console.warn('[Leaderboard] Invalid event signature, skipping');
+    return false;
+  }
+  
   try {
     const data = JSON.parse(event.content);
     const pet = data.pet;
@@ -213,8 +221,8 @@ export async function fetchLeaderboard(timeoutMs: number = 12000): Promise<Leade
           limit: 200,
         } as Record<string, unknown>,
       ] as unknown as Parameters<typeof pool.subscribeMany>[1], {
-        onevent(event) {
-          tryParseEvent(event, entries);
+        async onevent(event) {
+          await tryParseEvent(event as any, entries);
         },
         oneose: onEose,
       });
@@ -231,8 +239,8 @@ export async function fetchLeaderboard(timeoutMs: number = 12000): Promise<Leade
           limit: 200,
         } as Record<string, unknown>,
       ] as unknown as Parameters<typeof pool.subscribeMany>[1], {
-        onevent(event) {
-          tryParseEvent(event, entries);
+        async onevent(event) {
+          await tryParseEvent(event as any, entries);
         },
         oneose: onEose,
       });

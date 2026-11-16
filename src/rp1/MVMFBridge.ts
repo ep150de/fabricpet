@@ -232,8 +232,13 @@ export function getNSOServiceDefinition(): NSOPetService {
  */
 export async function pushSceneJSON(
   sceneJSON: unknown[],
-  adminKey: string = 'P0rt3rT'
+  adminKey?: string
 ): Promise<boolean> {
+  // SECURITY: Admin key must be provided by the caller, not hardcoded.
+  // In production, this should be obtained from a secure server-side endpoint.
+  if (!adminKey) {
+    console.warn('[MVMF Bridge] No admin key provided - scene push may fail');
+  }
   // Pre-check: is MSF even reachable? (5s timeout)
   const healthy = await checkMSFHealth();
   if (!healthy) {
@@ -267,12 +272,15 @@ export async function pushSceneJSON(
 
   try {
     // The Scene Assembler accepts JSON via its code editor endpoint
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+    if (adminKey) {
+      headers['X-Admin-Key'] = adminKey;
+    }
     const response = await fetch(`${RP1_CONFIG.msfServiceUrl}/api/scene/json`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Admin-Key': adminKey,
-      },
+      headers,
       body: JSON.stringify({
         key: adminKey,
         fabricUrl: RP1_CONFIG.fabricUrl,
@@ -290,12 +298,15 @@ export async function pushSceneJSON(
     // If the endpoint doesn't exist yet, try the general update (also with timeout)
     if (response.status === 404) {
       console.log('[MVMF Bridge] /api/scene/json not found, trying /api/scene/update');
+      const fallbackHeaders: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+      if (adminKey) {
+        fallbackHeaders['X-Admin-Key'] = adminKey;
+      }
       const fallback = await fetch(`${RP1_CONFIG.msfServiceUrl}/api/scene/update`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Admin-Key': adminKey,
-        },
+        headers: fallbackHeaders,
         body: JSON.stringify({
           key: adminKey,
           cid: RP1_CONFIG.startCid,

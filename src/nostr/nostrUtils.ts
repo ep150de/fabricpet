@@ -6,36 +6,32 @@
 import { generateSecretKey, getPublicKey, finalizeEvent } from 'nostr-tools/pure';
 import { nip44 } from 'nostr-tools';
 import { npubEncode, nsecEncode, decode } from 'nostr-tools/nip19';
-import { simpleHash } from '../utils/hash';
 
 /**
  * Generate a seed from a wallet's xpub and an optional pet ID.
- * Uses HMAC-SHA256-like derivation for deterministic keys.
+ * Uses SHA-256 for proper cryptographic hashing.
+ * SECURITY: This should include a signature from the wallet for full entropy.
  */
-export function generateSeedFromWallet(walletXpub: string, petId?: string): Uint8Array {
-  // Simple but deterministic seed generation
+export async function generateSeedFromWallet(walletXpub: string, petId?: string): Promise<Uint8Array> {
   const data = walletXpub + (petId ? `:${petId}` : '');
-  const hashValue = simpleHash(data);
-  
-  // Convert hash to 32-byte seed
-  const seed = new Uint8Array(32);
-  for (let i = 0; i < 32; i++) {
-    seed[i] = (hashValue >> ((i % 4) * 8)) & 0xff;
-  }
-  return seed;
+  const encoder = new TextEncoder();
+  const hashBuffer = await crypto.subtle.digest('SHA-256', encoder.encode(data));
+  return new Uint8Array(hashBuffer);
 }
 
 /**
  * Derive a nostr nsec (private key) from a seed.
- * Uses the seed to generate a secp256k1 private key.
+ * Uses the full 32-byte seed as the private key.
  */
 export function deriveNsecFromSeed(seed: Uint8Array): string {
-  // For deterministic generation, we create a key based on the seed
-  // In production, use proper key derivation (e.g., BIP-85)
+  if (seed.length < 32) {
+    throw new Error('Seed must be at least 32 bytes');
+  }
   const secretKey = new Uint8Array(32);
   secretKey.set(seed.slice(0, 32));
   return nsecEncode(secretKey);
 }
+
 
 /**
  * Derive a nostr npub (public key) from an nsec.
@@ -69,15 +65,16 @@ export function generateNewKeypair(): { nsec: string; npub: string } {
  * Sign an event with an nsec string.
  */
 export async function signEventWithNsec(event: Record<string, unknown>, nsec: string): Promise<Record<string, unknown>> {
+  const decoded = decode(nsec);
+  if (decoded.type !== 'nsec') {
+    throw new Error('Invalid nsec format');
+  }
   try {
-    const decoded = decode(nsec);
-    if (decoded.type === 'nsec') {
-      return finalizeEvent(event as Parameters<typeof finalizeEvent>[0], decoded.data) as unknown as Record<string, unknown>;
-    }
+    return finalizeEvent(event as Parameters<typeof finalizeEvent>[0], decoded.data) as unknown as Record<string, unknown>;
   } catch (e) {
     console.error('[nostrUtils] Failed to sign event:', e);
+    throw new Error('Failed to sign event: ' + (e instanceof Error ? e.message : String(e)));
   }
-  return event;
 }
 
 /**

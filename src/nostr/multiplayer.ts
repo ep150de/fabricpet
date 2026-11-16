@@ -110,17 +110,13 @@ async function publishSignal(
   const pool = getPool();
   const relays = getRelays();
 
-  let encryptedContent: string;
-  try {
-    if (identity.secretKey) {
-      const conversationKey = nip44.v2.utils.getConversationKey(identity.secretKey, signal.toPubkey);
-      encryptedContent = nip44.v2.encrypt(JSON.stringify(signal), conversationKey);
-    } else {
-      encryptedContent = JSON.stringify(signal);
-    }
-  } catch {
-    encryptedContent = JSON.stringify(signal);
+  // Require encryption - fail closed if no secret key
+  if (!identity.secretKey) {
+    throw new Error('Cannot publish signal without secret key - encryption required');
   }
+  
+  const conversationKey = nip44.v2.utils.getConversationKey(identity.secretKey, signal.toPubkey);
+  const encryptedContent = nip44.v2.encrypt(JSON.stringify(signal), conversationKey);
 
   const event = {
     kind: NOSTR_KIND_APP_DATA,
@@ -401,23 +397,20 @@ export function subscribeToSignals(
   ] as unknown as Parameters<typeof pool.subscribeMany>[1], {
     onevent(event) {
       try {
-        let signalContent = event.content;
-        
-        try {
-          if (identity.secretKey && event.pubkey) {
-            const conversationKey = nip44.v2.utils.getConversationKey(identity.secretKey, event.pubkey);
-            signalContent = nip44.v2.decrypt(event.content, conversationKey);
-          }
-        } catch {
-          // Fallback to plaintext if decryption fails
+        // Require decryption - skip if no secret key or decryption fails
+        if (!identity.secretKey || !event.pubkey) {
+          return;
         }
+        
+        const conversationKey = nip44.v2.utils.getConversationKey(identity.secretKey, event.pubkey);
+        const signalContent = nip44.v2.decrypt(event.content, conversationKey);
         
         const signal = JSON.parse(signalContent) as WebRTCSignal;
         if (signal.toPubkey === identity.pubkey && signal.sessionId) {
           onSignal(signal);
         }
       } catch {
-        // Invalid event
+        // Decryption failed - skip event (fail closed)
       }
     },
     oneose() {

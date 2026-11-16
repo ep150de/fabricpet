@@ -6,6 +6,7 @@ import { DEFAULT_RELAYS, NOSTR_D_TAGS } from '../utils/constants';
 import type { Pet, GuestbookEntry } from '../types';
 import type { NostrIdentity } from './identity';
 import { getPool } from './relayManager';
+import { verifyEvent } from './nostrUtils';
 
 export interface VisitedPet {
   pubkey: string;
@@ -36,6 +37,13 @@ export async function loadPetByPubkey(pubkey: string): Promise<VisitedPet | null
 
     if (!event) {
       console.log(`[PetVisitor] No pet found for ${pubkey.slice(0, 12)}...`);
+      return null;
+    }
+
+    // Verify event signature before trusting content
+    const isValid = await verifyEvent(event as any);
+    if (!isValid) {
+      console.warn(`[PetVisitor] Invalid event signature for ${pubkey.slice(0, 12)}...`);
       return null;
     }
 

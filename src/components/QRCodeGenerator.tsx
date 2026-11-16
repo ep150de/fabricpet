@@ -17,7 +17,7 @@ export function QRCodeGenerator({ npub, petName, size = 200 }: QRCodeGeneratorPr
   useEffect(() => {
     if (canvasRef.current && npub) {
       // Generate QR code with deep link
-      const deepLink = `fabricpet://join?npub=${npub}&name=${encodeURIComponent(petName)}`;
+      const deepLink = `${window.location.origin}${window.location.pathname}?rp1_action=visit&pubkey=${npub}`;
       
       QRCode.toCanvas(
         canvasRef.current,
@@ -60,7 +60,7 @@ export function QRCodeGenerator({ npub, petName, size = 200 }: QRCodeGeneratorPr
  * Generate QR code data URL for sharing
  */
 export async function generateQRCodeDataUrl(npub: string, petName: string): Promise<string> {
-  const deepLink = `fabricpet://join?npub=${npub}&name=${encodeURIComponent(petName)}`;
+  const deepLink = `${window.location.origin}${window.location.pathname}?rp1_action=visit&pubkey=${npub}`;
   
   try {
     return await QRCode.toDataURL(deepLink, {

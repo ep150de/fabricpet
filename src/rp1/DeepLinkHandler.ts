@@ -20,6 +20,16 @@ export interface DeepLinkAction {
  * - ?rp1_action=chat                   → Open Chat
  * - ?view=<viewname>                   → Navigate to any view
  */
+// Validate hex pubkey or npub format
+function isValidPubkey(input: string): boolean {
+  if (!input) return true; // Empty is OK (will be handled later)
+  // Hex pubkey (64 chars)
+  if (/^[0-9a-fA-F]{64}$/.test(input)) return true;
+  // npub format
+  if (input.startsWith('npub1') && input.length >= 58) return true;
+  return false;
+}
+
 export function parseDeepLink(url: string = window.location.href): DeepLinkAction | null {
   try {
     const params = new URL(url).searchParams;
@@ -28,16 +38,28 @@ export function parseDeepLink(url: string = window.location.href): DeepLinkActio
     const rp1Action = params.get('rp1_action');
     if (rp1Action) {
       switch (rp1Action) {
-        case 'visit':
+        case 'visit': {
+          const pubkey = params.get('pubkey') || '';
+          if (pubkey && !isValidPubkey(pubkey)) {
+            console.warn('[DeepLink] Invalid pubkey in deep link');
+            return null;
+          }
           return {
             view: 'social',
-            params: { tab: 'visit', pubkey: params.get('pubkey') || '' },
+            params: { tab: 'visit', pubkey },
           };
-        case 'battle':
+        }
+        case 'battle': {
+          const challenger = params.get('challenger') || '';
+          if (challenger && !isValidPubkey(challenger)) {
+            console.warn('[DeepLink] Invalid challenger in deep link');
+            return null;
+          }
           return {
             view: 'battle',
-            params: { challenger: params.get('challenger') || '' },
+            params: { challenger },
           };
+        }
         case 'arena':
           return {
             view: 'battle',

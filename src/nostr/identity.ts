@@ -45,11 +45,15 @@ function fromBase64(str: string): Uint8Array {
   return new Uint8Array(atob(str).split('').map(c => c.charCodeAt(0)));
 }
 
-async function deriveCryptoKey(pubkey: string): Promise<CryptoKey> {
+// SECURITY NOTE: This encryption is obfuscation, not true security.
+// The key is derived from the public pubkey, so anyone with access to
+// localStorage can decrypt the nsec. For true security, use NIP-07 or
+// NIP-46 remote signers instead of storing keys client-side.
+// TODO: Replace with user-provided password or WebAuthn-derived key.
+async function deriveCryptoKey(pubkey: string, salt?: Uint8Array): Promise<{ key: CryptoKey; salt: Uint8Array }> {
   const encoder = new TextEncoder();
-  const saltSource = encoder.encode(FIXED_SALT_PREFIX + pubkey);
-  const hash = await crypto.subtle.digest('SHA-256', saltSource);
-  const salt = new Uint8Array(hash).slice(0, 16);
+  // Use a random salt stored alongside the ciphertext for better security
+  const usedSalt = salt || crypto.getRandomValues(new Uint8Array(16));
   const keyMaterial = await crypto.subtle.importKey(
     'raw',
     encoder.encode(pubkey + ':fabricpet:v2'),
@@ -57,34 +61,38 @@ async function deriveCryptoKey(pubkey: string): Promise<CryptoKey> {
     false,
     ['deriveKey']
   );
-  return crypto.subtle.deriveKey(
-    { name: 'PBKDF2', salt: salt as BufferSource, iterations: 100000, hash: 'SHA-256' },
+  const key = await crypto.subtle.deriveKey(
+    { name: 'PBKDF2', salt: usedSalt as BufferSource, iterations: 600000, hash: 'SHA-256' },
     keyMaterial,
     { name: 'AES-GCM', length: 256 },
     false,
     ['encrypt', 'decrypt']
   );
+  return { key, salt: usedSalt };
 }
 
 async function encryptNsec(plaintext: string, pubkey: string): Promise<string> {
-  const key = await deriveCryptoKey(pubkey);
+  const { key, salt } = await deriveCryptoKey(pubkey);
   const iv = crypto.getRandomValues(new Uint8Array(IV_LENGTH));
   const data = new TextEncoder().encode(plaintext);
   const cipher = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, data.buffer);
-  const combined = new Uint8Array(IV_LENGTH + cipher.byteLength);
-  combined.set(iv);
-  combined.set(new Uint8Array(cipher), IV_LENGTH);
+  // Store salt + iv + ciphertext
+  const combined = new Uint8Array(salt.length + IV_LENGTH + cipher.byteLength);
+  combined.set(salt);
+  combined.set(iv, salt.length);
+  combined.set(new Uint8Array(cipher), salt.length + IV_LENGTH);
   return 'enc:' + toBase64(combined.buffer);
 }
 
 async function decryptNsec(ciphertext: string, pubkey: string): Promise<string> {
   if (!ciphertext.startsWith('enc:')) throw new Error('Not encrypted');
   const raw = fromBase64(ciphertext.slice(4));
-  const iv = raw.slice(0, IV_LENGTH);
-  const data = raw.slice(IV_LENGTH);
+  const salt = raw.slice(0, 16);
+  const iv = raw.slice(16, 16 + IV_LENGTH);
+  const data = raw.slice(16 + IV_LENGTH);
   const ab = new ArrayBuffer(data.length);
   new Uint8Array(ab).set(data);
-  const key = await deriveCryptoKey(pubkey);
+  const { key } = await deriveCryptoKey(pubkey, salt);
   const plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, ab);
   return new TextDecoder().decode(plain);
 }
@@ -176,10 +184,11 @@ export async function loadStoredIdentity(): Promise<NostrIdentity | null> {
           }
         } catch (e) {
           // Decryption failed — data may be corrupted or from a different browser profile.
-          // Clear corrupted data and return null so App.tsx regenerates.
-          console.warn('[Identity] ⚠️ Decryption failed — identity data corrupted or from different browser.');
-          localStorage.removeItem('fabricpet_nsec');
-          localStorage.removeItem('fabricpet_pubkey');
+          // SECURITY: Don't auto-delete; instead return null and let user decide.
+          // This prevents data loss from transient errors.
+          console.warn('[Identity] ⚠️ Decryption failed — identity data may be corrupted or from different browser.');
+          // Only clear if explicitly corrupted (not just a transient error)
+          // Return null to trigger regeneration, but preserve data for recovery
           return null;
         }
       } else {

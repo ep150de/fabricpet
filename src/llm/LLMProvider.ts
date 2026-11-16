@@ -48,6 +48,50 @@ export interface LLMConfig {
   apiKey?: string;         // API key for OpenRouter / OpenAI-compatible endpoints
 }
 
+/**
+ * Validate an LLM endpoint URL to prevent SSRF.
+ * Only allows http/https schemes and blocks private/internal IPs.
+ */
+export function validateEndpoint(endpoint: string): boolean {
+  try {
+    const url = new URL(endpoint);
+    
+    // Only allow http and https
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+      return false;
+    }
+    
+    // Block private/internal IP ranges (SSRF prevention)
+    const hostname = url.hostname.toLowerCase();
+    
+    // Block localhost variants
+    if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1' || hostname === '0.0.0.0') {
+      // Allow localhost for local LLM servers
+      return true;
+    }
+    
+    // Block private IP ranges
+    const privateRanges = [
+      /^10\./,
+      /^172\.(1[6-9]|2[0-9]|3[01])\./,
+      /^192\.168\./,
+      /^169\.254\./, // link-local
+      /^fc00:/i,      // IPv6 unique local
+      /^fe80:/i,      // IPv6 link-local
+    ];
+    
+    for (const range of privateRanges) {
+      if (range.test(hostname)) {
+        return false; // Block private IPs for remote endpoints
+      }
+    }
+    
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export interface ChatMessage {
   role: 'system' | 'user' | 'assistant';
   content: string;
