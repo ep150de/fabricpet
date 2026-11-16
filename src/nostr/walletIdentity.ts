@@ -7,7 +7,8 @@
 
 import type { NostrIdentity } from './identity';
 
-const SIGN_MESSAGE = 'FabricPet Identity Derivation v1';
+// SECURITY: Include origin and version for domain separation
+const SIGN_MESSAGE = `FabricPet Identity Derivation v2:${typeof window !== 'undefined' ? window.location.origin : 'unknown'}`;
 
 /**
  * Derive a Nostr identity from a UniSat wallet signature.

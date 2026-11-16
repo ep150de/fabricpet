@@ -101,8 +101,32 @@ export async function migrateLocalStorageToIndexedDB(): Promise<void> {
   if (failedCount === 0) {
     markMigrationComplete();
     console.log('[Migration] Marked as complete');
+    
+    // SECURITY: Clear sensitive keys from localStorage after successful migration
+    // This prevents keys from lingering in two storage locations
+    clearSensitiveLocalStorageKeys();
   } else {
     console.warn('[Migration] Some keys failed to migrate, will retry on next load');
+  }
+}
+
+/**
+ * Clear sensitive keys from localStorage after migration.
+ * SECURITY: Prevents keys from lingering in two storage locations.
+ */
+function clearSensitiveLocalStorageKeys(): void {
+  const sensitiveKeys = [
+    'fabricpet_nsec',
+    'fabricpet_remote_signer',
+  ];
+  
+  for (const key of sensitiveKeys) {
+    try {
+      localStorage.removeItem(key);
+      console.log(`[Migration] Cleared sensitive key: ${key}`);
+    } catch (e) {
+      console.warn(`[Migration] Failed to clear ${key}:`, e);
+    }
   }
 }
 

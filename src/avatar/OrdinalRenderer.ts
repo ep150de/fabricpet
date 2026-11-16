@@ -33,7 +33,18 @@ export interface InscriptionContent {
  * 
  * Note: Hiro API removed due to 410 Gone errors and CORS restrictions from GitHub Pages
  */
+// Validate inscription ID format (txid + 'i' + index)
+function isValidInscriptionId(id: string): boolean {
+  return /^[a-f0-9]{64}i\d+$/i.test(id);
+}
+
 export async function fetchInscriptionContent(inscriptionId: string): Promise<InscriptionContent | null> {
+  // SECURITY: Validate inscription ID to prevent injection
+  if (!isValidInscriptionId(inscriptionId)) {
+    console.warn('[OrdinalRenderer] Invalid inscription ID format:', inscriptionId);
+    return null;
+  }
+  
   // Source 1: UniSat Open API (optional, requires API key)
   const apiKey = getUnisatApiKey();
   if (apiKey) {

@@ -73,19 +73,47 @@ export async function getCurrentPosition(): Promise<{ lat: number; lng: number }
 /**
  * Broadcast pet position to Nostr relays
  */
+const LOCATION_SHARING_KEY = 'fabricpet_location_sharing_enabled';
+
+export function isLocationSharingEnabled(): boolean {
+  try {
+    return localStorage.getItem(LOCATION_SHARING_KEY) === 'true';
+  } catch {
+    return false;
+  }
+}
+
+export function setLocationSharingEnabled(enabled: boolean): void {
+  try {
+    localStorage.setItem(LOCATION_SHARING_KEY, String(enabled));
+  } catch {
+    console.warn('[RealtimeSharing] Failed to save location sharing preference');
+  }
+}
+
 export async function broadcastPosition(
   identity: NostrIdentity,
   pet: Pet,
   position: { lat: number; lng: number },
   fabricCid?: number
 ): Promise<boolean> {
+  // SECURITY: Only broadcast if user has explicitly opted in
+  if (!isLocationSharingEnabled()) {
+    console.log('[RealtimeSharing] Location sharing disabled by user');
+    return false;
+  }
+  
   try {
+    // SECURITY: Round coordinates to ~1km precision for privacy
+    const roundedLat = Math.round(position.lat * 100) / 100;
+    const roundedLng = Math.round(position.lng * 100) / 100;
+    
     const petPosition: PetPosition = {
       petId: pet.id,
       pubkey: identity.pubkey,
       petName: pet.name,
-      lat: position.lat,
-      lng: position.lng,
+      lat: roundedLat,
+      lng: roundedLng,
       fabricCid,
       timestamp: Date.now(),
       petState: {

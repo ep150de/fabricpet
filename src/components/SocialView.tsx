@@ -602,7 +602,7 @@ function VisitTab() {
               <div className="space-y-2 max-h-40 overflow-y-auto">
                 {visitedPet.guestbook.map((entry, i) => (
                   <div key={i} className="bg-[#0f0f23] rounded-lg p-2">
-                    <p className="text-xs text-gray-300">{entry.message}</p>
+                    <p className="text-xs text-gray-300">{entry.message.slice(0, 140)}</p>
                     <p className="text-xs text-gray-600 mt-1">
                       {entry.visitor.slice(0, 8)}... • {new Date(entry.timestamp).toLocaleDateString()}
                     </p>
