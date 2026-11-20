@@ -4,6 +4,7 @@
 
 import type { Pet, HomeState } from '../types';
 import { getPool, getRelays } from './relayManager';
+import { verifyEvent } from './nostrUtils';
 import { NOSTR_KIND_APP_DATA, NOSTR_D_TAGS } from '../utils/constants';
 import type { NostrIdentity } from './identity';
 import { signEvent } from './identity';
@@ -71,6 +72,13 @@ export async function loadPetState(pubkey: string): Promise<Pet | null> {
     });
 
     if (!event) return null;
+
+    // Verify event signature before trusting content
+    const isValid = await verifyEvent(event as any);
+    if (!isValid) {
+      console.warn('[PetStorage] Invalid event signature, skipping');
+      return null;
+    }
 
     const data = JSON.parse(event.content);
     return data.pet as Pet;
@@ -202,8 +210,10 @@ export function subscribeToChallenges(
       '#d': [`${NOSTR_D_TAGS.BATTLE_CHALLENGE}.${pubkey}`],
     } as Record<string, unknown>,
   ] as unknown as Parameters<typeof pool.subscribeMany>[1], {
-    onevent(event) {
+    async onevent(event) {
       try {
+        const isValid = await verifyEvent(event as any);
+        if (!isValid) return;
         const data = JSON.parse(event.content);
         if (data.type === 'battle_challenge') {
           onChallenge(data);

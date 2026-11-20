@@ -16,6 +16,7 @@ import { getPool, getRelays } from './relayManager';
 import { NOSTR_KIND_APP_DATA } from '../utils/constants';
 import { signEvent } from './identity';
 import { nip44 } from 'nostr-tools';
+import { verifyEvent } from './nostrUtils';
 
 export type MultiplayerSessionType = 'spectate_battle' | 'co_view_pet' | 'voice_chat' | 'video_chat';
 
@@ -619,8 +620,10 @@ export function subscribeToBattleSpectators(
       '#e': [battleId],
     } as Record<string, unknown>,
   ] as unknown as Parameters<typeof pool.subscribeMany>[1], {
-    onevent(event) {
+    async onevent(event) {
       try {
+        const isValid = await verifyEvent(event as any);
+        if (!isValid) return;
         const data = JSON.parse(event.content);
         if (data.battleId === battleId) {
           if (data.action === 'join') {

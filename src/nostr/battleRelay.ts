@@ -10,6 +10,7 @@
 import type { NostrIdentity } from './identity';
 import { DEFAULT_RELAYS, NOSTR_KIND_APP_DATA } from '../utils/constants';
 import { getPool, getRelays } from './relayManager';
+import { verifyEvent } from './nostrUtils';
 import type { BattleStats, ElementalType } from '../types';
 import type { RPSChoice, RPSBattleState } from '../battle/RPSEngine';
 
@@ -186,8 +187,10 @@ export async function subscribeToChallenges(
         since: Math.floor(Date.now() / 1000) - 3600, // Last hour
       } as Record<string, unknown>,
     ] as unknown as Parameters<typeof pool.subscribeMany>[1], {
-      onevent(event) {
+      async onevent(event) {
         try {
+          const isValid = await verifyEvent(event as any);
+          if (!isValid) return;
           const challenge = JSON.parse(event.content) as BattleChallenge;
           if (
             (challenge.targetPubkey === pubkey || challenge.targetPubkey === null) &&
@@ -328,8 +331,10 @@ export async function subscribeToMoves(
           },
         ],
         {
-          onevent(event) {
+          async onevent(event) {
             try {
+              const isValid = await verifyEvent(event as any);
+              if (!isValid) return;
               const move = JSON.parse(event.content) as BattleMoveEvent;
               if (move.battleId === battleId) {
                 onMove(move);
@@ -482,8 +487,10 @@ export async function subscribeToRPSMoves(
         since: Math.floor(Date.now() / 1000) - 300,
       } as Record<string, unknown>,
     ] as unknown as Parameters<typeof pool.subscribeMany>[1], {
-      onevent(event) {
+      async onevent(event) {
         try {
+          const isValid = await verifyEvent(event as any);
+          if (!isValid) return;
           const commit = JSON.parse(event.content) as RPSMoveCommit;
           if (commit.battleId === battleId) {
             onMove(commit);

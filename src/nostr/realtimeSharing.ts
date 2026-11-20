@@ -7,6 +7,7 @@
 
 import { getPool, getRelays } from './relayManager';
 import { signEvent } from './identity';
+import { verifyEvent } from './nostrUtils';
 import { NOSTR_KIND_APP_DATA, RP1_CONFIG } from '../utils/constants';
 import type { NostrIdentity } from './identity';
 import type { Pet } from '../types';
@@ -221,8 +222,10 @@ export async function fetchNearbyPets(
           since: Math.floor(Date.now() / 1000) - 3600, // Last hour
         } as Record<string, unknown>,
       ] as unknown as Parameters<typeof pool.subscribeMany>[1], {
-        onevent(event) {
+        async onevent(event) {
           try {
+            const isValid = await verifyEvent(event as any);
+            if (!isValid) return;
             const data = JSON.parse(event.content);
             if (!data.petId || !data.lat || !data.lng) return;
 

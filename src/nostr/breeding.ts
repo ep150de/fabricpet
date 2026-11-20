@@ -7,6 +7,7 @@ import { NOSTR_KIND_APP_DATA, NOSTR_D_TAGS, BREEDING_CONFIG } from '../utils/con
 import { getPool, getRelays } from './relayManager';
 import type { NostrIdentity } from './identity';
 import { signEvent } from './identity';
+import { verifyEvent } from './nostrUtils';
 
 export async function publishBreedingOffer(
   identity: NostrIdentity,
@@ -175,8 +176,12 @@ export function subscribeToBreedingOffers(
       limit: 50,
     } as Record<string, unknown>,
   ] as unknown as Parameters<typeof pool.subscribeMany>[1], {
-    onevent(event) {
+    async onevent(event) {
       try {
+        // Verify event signature before trusting content
+        const isValid = await verifyEvent(event as any);
+        if (!isValid) return;
+        
         const data = JSON.parse(event.content);
         if (data.type !== 'breeding_offer') return;
 

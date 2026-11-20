@@ -7,6 +7,7 @@ import { NOSTR_KIND_APP_DATA, NOSTR_D_TAGS } from '../utils/constants';
 import { getPool, getRelays } from './relayManager';
 import type { NostrIdentity } from './identity';
 import { signEvent } from './identity';
+import { verifyEvent } from './nostrUtils';
 
 export type TradeStatus = 'offered' | 'accepted' | 'rejected' | 'completed' | 'cancelled' | 'expired';
 
@@ -136,8 +137,10 @@ export function subscribeToTradeOffers(
       limit: 50,
     } as Record<string, unknown>,
   ] as unknown as Parameters<typeof pool.subscribeMany>[1], {
-    onevent(event) {
+    async onevent(event) {
       try {
+        const isValid = await verifyEvent(event as any);
+        if (!isValid) return;
         const data = JSON.parse(event.content);
         if (data.type !== 'trade_offer') return;
 
@@ -196,8 +199,10 @@ export function subscribeToTradeResponses(
       limit: 50,
     } as Record<string, unknown>,
   ] as unknown as Parameters<typeof pool.subscribeMany>[1], {
-    onevent(event) {
+    async onevent(event) {
       try {
+        const isValid = await verifyEvent(event as any);
+        if (!isValid) return;
         const data = JSON.parse(event.content);
         if (data.type !== 'trade_response') return;
         if (data.tradeId !== tradeId) return;

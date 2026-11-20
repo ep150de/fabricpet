@@ -91,8 +91,10 @@ async function loadGuestbook(ownerPubkey: string): Promise<GuestbookEntry[]> {
             },
           ],
           {
-            onevent(event) {
+            async onevent(event) {
               try {
+                const isValid = await verifyEvent(event as any);
+                if (!isValid) return;
                 const data = JSON.parse(event.content);
                 if (data.message) {
                   entries.push({

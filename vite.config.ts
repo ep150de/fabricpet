@@ -73,30 +73,8 @@ export default defineConfig({
               },
             },
           },
-          {
-            urlPattern: /^https:\/\/relay\..*/,
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'nostr-relay-cache',
-              networkTimeoutSeconds: 10,
-              expiration: {
-                maxEntries: 100,
-                maxAgeSeconds: 60 * 60,
-              },
-            },
-          },
-          {
-            urlPattern: /^https:\/\/nos\.lol.*/,
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'nostr-relay-cache',
-              networkTimeoutSeconds: 10,
-              expiration: {
-                maxEntries: 100,
-                maxAgeSeconds: 60 * 60,
-              },
-            },
-          },
+          // NOTE: Relay responses are NOT cached to prevent stale Nostr data.
+          // Only static assets (GLB, GLTF, VRM, images) are cached.
         ],
       },
     }),
